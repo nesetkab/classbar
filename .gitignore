@@ -1,0 +1,6 @@
+classbar
+cbtest
+cbtest_dbg
+*.dSYM
+*.o
+schedule.json
