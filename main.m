@@ -1,12 +1,8 @@
 #import <Cocoa/Cocoa.h>
 
-static NSString *SupportDir(void) {
-    return [NSHomeDirectory() stringByAppendingPathComponent:
-            @"Library/Application Support/classbar"];
-}
-
 static NSString *SchedulePath(void) {
-    return [SupportDir() stringByAppendingPathComponent:@"schedule.json"];
+    return [NSHomeDirectory() stringByAppendingPathComponent:
+            @"Library/Application Support/classbar/schedule.json"];
 }
 
 static NSString *CachePath(void) {
@@ -181,9 +177,8 @@ static NSDate *ParseISO(NSString *s) {
     return [s isKindOfClass:[NSString class]] ? [f dateFromString:s] : nil;
 }
 
-static NSString *DueLabel(NSDate *due) {
+static NSString *DueLabel(NSCalendar *cal, NSDate *due) {
     if (!due) return @"";
-    NSCalendar *cal = [NSCalendar currentCalendar];
     NSDate *a, *b;
     [cal rangeOfUnit:NSCalendarUnitDay startDate:&a interval:NULL forDate:[NSDate date]];
     [cal rangeOfUnit:NSCalendarUnitDay startDate:&b interval:NULL forDate:due];
@@ -208,7 +203,7 @@ static NSString *Clip(NSString *s, NSUInteger n) {
 
 static NSImage *CatIcon(void) {
     return [NSImage imageWithSize:NSMakeSize(18, 18) flipped:NO
-                   drawingHandler:^BOOL(NSRect r) {
+                   drawingHandler:^BOOL(NSRect rect __unused) {
         [[NSColor blackColor] setStroke];
         [[NSColor blackColor] setFill];
 
@@ -260,13 +255,14 @@ static NSImage *CatIcon(void) {
 @interface ClassBar : NSObject <NSApplicationDelegate, NSMenuDelegate>
 @property (strong) NSStatusItem *status;
 @property (strong) Schedule *schedule;
+@property (assign) NSTimeInterval scheduleStamp;
 @property (copy)   NSString *link;
 @end
 
 @implementation ClassBar
 
-- (void)applicationDidFinishLaunching:(NSNotification *)n {
-    self.schedule = [Schedule loadFromDisk];
+- (void)applicationDidFinishLaunching:(NSNotification *)note __unused {
+    [self reloadScheduleIfChanged];
     self.link = self.schedule.canvasHome;
     self.status = [[NSStatusBar systemStatusBar]
                     statusItemWithLength:NSVariableStatusItemLength];
@@ -282,10 +278,21 @@ static NSImage *CatIcon(void) {
     self.status.menu = m;
 }
 
+- (void)reloadScheduleIfChanged {
+    NSDictionary *attrs = [[NSFileManager defaultManager]
+        attributesOfItemAtPath:SchedulePath() error:NULL];
+    NSTimeInterval stamp = [attrs.fileModificationDate timeIntervalSince1970];
+    if (self.schedule && stamp == self.scheduleStamp) return;
+    self.schedule = [Schedule loadFromDisk];
+    self.scheduleStamp = stamp;
+}
+
 - (void)menuNeedsUpdate:(NSMenu *)menu {
     [menu removeAllItems];
+    [self reloadScheduleIfChanged];
 
-    NSDateComponents *p = [[NSCalendar currentCalendar]
+    NSCalendar *cal = [NSCalendar currentCalendar];
+    NSDateComponents *p = [cal
         components:(NSCalendarUnitYear|NSCalendarUnitMonth|NSCalendarUnitDay|
                     NSCalendarUnitHour|NSCalendarUnitMinute|NSCalendarUnitWeekday)
           fromDate:[NSDate date]];
@@ -310,7 +317,7 @@ static NSImage *CatIcon(void) {
             NSString *nm = a[@"name"], *cs = a[@"course"], *ur = a[@"url"];
             if (![nm isKindOfClass:[NSString class]]) continue;
             NSDate *due = ParseISO(a[@"due"]);
-            NSString *dl = DueLabel(due);
+            NSString *dl = DueLabel(cal, due);
 
             NSMenuItem *it = [[NSMenuItem alloc] initWithTitle:nm
                                                         action:@selector(openItem:)
@@ -443,7 +450,7 @@ int main(void) {
         if (!up.count) printf("  (none at %s)\n", CachePath().UTF8String);
         for (NSDictionary *a in up) {
             NSDate *due = ParseISO(a[@"due"]);
-            printf("  %-6s %s\n", DueLabel(due).UTF8String, Clip(a[@"name"], 32).UTF8String);
+            printf("  %-6s %s\n", DueLabel([NSCalendar currentCalendar], due).UTF8String, Clip(a[@"name"], 32).UTF8String);
         }
 
         printf("\n%s (%d failures)\n", fails ? "FAILED" : "ALL PASS", fails);
@@ -454,9 +461,9 @@ int main(void) {
 int main(void) {
     @autoreleasepool {
         NSApplication *app = [NSApplication sharedApplication];
-        ClassBar *d = [[ClassBar alloc] init];
-        CFRetain((__bridge CFTypeRef)d);
-        app.delegate = d;
+        static ClassBar *delegate;
+        delegate = [[ClassBar alloc] init];
+        app.delegate = delegate;
         [app setActivationPolicy:NSApplicationActivationPolicyAccessory];
         [app run];
     }
