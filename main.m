@@ -161,6 +161,108 @@ static void cb_resolve(Schedule *s, int ymd, int mins, int day,
     *outTitle = @"No classes";
 }
 
+static NSString *HHMMshort(int m) {
+    int h24 = m / 60, mm = m % 60;
+    int h = h24 % 12; if (h == 0) h = 12;
+    return [NSString stringWithFormat:@"%d:%02d%s", h, mm, h24 >= 12 ? "p" : "a"];
+}
+
+static NSArray *cb_series(Schedule *s, int ymd, int mins, int day, int count) {
+    NSMutableArray *out = [NSMutableArray array];
+    if (s.loadError || ymd < s.termStart || ymd > s.termEnd) return out;
+
+    int d = day, after = mins, guard = 0;
+    BOOL checkNow = YES;
+
+    while ((int)out.count < count && guard++ < 24) {
+        NSDictionary *hit = nil;
+        BOOL now = NO;
+
+        if (checkNow) {
+            for (NSDictionary *c in s.byDay[d]) {
+                int st = [c[@"start"] intValue], en = [c[@"end"] intValue];
+                if (mins >= st && mins < en) { hit = c; now = YES; break; }
+            }
+            checkNow = NO;
+        }
+        if (!hit)
+            for (NSDictionary *c in s.byDay[d])
+                if ([c[@"start"] intValue] > after) { hit = c; break; }
+
+        if (hit) {
+            int st = [hit[@"start"] intValue], en = [hit[@"end"] intValue];
+            NSString *when;
+            if (now)
+                when = [NSString stringWithFormat:@"%@ • %@ left", HHMMshort(st), DUR(en - mins)];
+            else if (d == day)
+                when = [NSString stringWithFormat:@"%@ • in %@", HHMMshort(st), DUR(st - mins)];
+            else
+                when = [NSString stringWithFormat:@"%.3s %@", kDayName[d], HHMMshort(st)];
+
+            [out addObject:@{
+                @"title": hit[@"name"],
+                @"when": when,
+                @"room": [hit[@"room"] length] ? hit[@"room"] : @"",
+                @"now": @(now)
+            }];
+            after = st;
+            continue;
+        }
+
+        BOOL rolled = NO;
+        for (int k = 1; k <= 7 && !rolled; k++) {
+            int nd = (d + k) % 7;
+            if ([s.byDay[nd] count]) { d = nd; after = -1; rolled = YES; }
+        }
+        if (!rolled) break;
+    }
+    return out;
+}
+
+@interface CardView : NSView
+@property (copy) NSString *title;
+@property (copy) NSString *when;
+@property (copy) NSString *room;
+@property (strong) NSColor *bg;
+@end
+
+@implementation CardView
+
+- (void)drawRect:(NSRect)dirty {
+    NSRect box = NSInsetRect(self.bounds, 7, 3);
+    NSBezierPath *p = [NSBezierPath bezierPathWithRoundedRect:box xRadius:7 yRadius:7];
+    [self.bg setFill];
+    [p fill];
+
+    NSDictionary *tAttr = @{
+        NSFontAttributeName: [NSFont systemFontOfSize:13 weight:NSFontWeightSemibold],
+        NSForegroundColorAttributeName: [NSColor blackColor]
+    };
+    NSDictionary *sAttr = @{
+        NSFontAttributeName: [NSFont monospacedDigitSystemFontOfSize:11 weight:NSFontWeightRegular],
+        NSForegroundColorAttributeName: [NSColor colorWithWhite:0.13 alpha:1.0]
+    };
+
+    CGFloat topY = NSMaxY(box) - 22;
+    CGFloat botY = NSMinY(box) + 7;
+
+    [self.title drawAtPoint:NSMakePoint(NSMinX(box) + 9, topY) withAttributes:tAttr];
+    [self.when drawAtPoint:NSMakePoint(NSMinX(box) + 9, botY) withAttributes:sAttr];
+
+    NSSize rs = [self.room sizeWithAttributes:sAttr];
+    [self.room drawAtPoint:NSMakePoint(NSMaxX(box) - 9 - rs.width, botY) withAttributes:sAttr];
+}
+
+@end
+
+static NSMenuItem *CardItem(NSString *title, NSString *when, NSString *room, NSColor *bg) {
+    CardView *v = [[CardView alloc] initWithFrame:NSMakeRect(0, 0, 292, 52)];
+    v.title = title; v.when = when; v.room = room; v.bg = bg;
+    NSMenuItem *i = [[NSMenuItem alloc] init];
+    i.view = v;
+    return i;
+}
+
 static NSArray *LoadUpcoming(void) {
     NSData *d = [NSData dataWithContentsOfFile:CachePath()];
     if (!d) return nil;
@@ -302,12 +404,22 @@ static NSImage *CatIcon(void) {
     int day  = (int)p.weekday - 2;
     if (day < 0) day = 6;
 
-    NSString *title = nil, *when = nil, *room = nil, *link = nil;
-    cb_resolve(self.schedule, ymd, mins, day, &title, &when, &room, &link);
-    self.link = link;
-    [self head:menu text:title];
-    if (when.length) [self sub:menu text:when];
-    if (room)        [self sub:menu text:room];
+    NSArray *series = cb_series(self.schedule, ymd, mins, day, 2);
+    if (series.count) {
+        NSColor *purple = [NSColor colorWithSRGBRed:0.722 green:0.655 blue:0.945 alpha:1.0];
+        NSColor *blue   = [NSColor colorWithSRGBRed:0.651 green:0.839 blue:0.933 alpha:1.0];
+        for (NSUInteger k = 0; k < series.count; k++) {
+            NSDictionary *e = series[k];
+            NSString *t = k == 0 ? e[@"title"]
+                        : [NSString stringWithFormat:@"Next: %@", e[@"title"]];
+            [menu addItem:CardItem(t, e[@"when"], e[@"room"], k == 0 ? purple : blue)];
+        }
+    } else {
+        NSString *title = nil, *when = nil, *room = nil, *link = nil;
+        cb_resolve(self.schedule, ymd, mins, day, &title, &when, &room, &link);
+        [self head:menu text:title];
+        if (when.length) [self sub:menu text:when];
+    }
 
     NSArray *up = LoadUpcoming();
     if (up.count) {
@@ -342,12 +454,6 @@ static NSImage *CatIcon(void) {
     }
 
     [menu addItem:[NSMenuItem separatorItem]];
-
-    NSMenuItem *o = [[NSMenuItem alloc] initWithTitle:@"Open Canvas"
-                                               action:@selector(openCanvas)
-                                        keyEquivalent:@""];
-    o.target = self; o.enabled = YES;
-    [menu addItem:o];
 
     NSMenuItem *q = [[NSMenuItem alloc] initWithTitle:@"Quit"
                                                action:@selector(quitApp)
