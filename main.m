@@ -385,10 +385,17 @@ static NSString *CacheAgeLabel(void) {
 }
 
 static NSDate *ParseISO(NSString *s) {
-    static NSISO8601DateFormatter *f;
+    static NSISO8601DateFormatter *plain, *fractional;
     static dispatch_once_t once;
-    dispatch_once(&once, ^{ f = [[NSISO8601DateFormatter alloc] init]; });
-    return [s isKindOfClass:[NSString class]] ? [f dateFromString:s] : nil;
+    dispatch_once(&once, ^{
+        plain = [[NSISO8601DateFormatter alloc] init];
+        fractional = [[NSISO8601DateFormatter alloc] init];
+        fractional.formatOptions = NSISO8601DateFormatWithInternetDateTime
+                                 | NSISO8601DateFormatWithFractionalSeconds;
+    });
+    if (![s isKindOfClass:[NSString class]]) return nil;
+    NSDate *d = [plain dateFromString:s];
+    return d ?: [fractional dateFromString:s];
 }
 
 static NSString *DueLabel(NSCalendar *cal, NSDate *due) {
@@ -848,6 +855,19 @@ int main(void) {
         BOOL chemLink = [chem[0][@"link"] hasSuffix:@"259102"];
         printf("  %-4s Gen Chem links to its canvas course\n", chemLink ? "ok" : "FAIL");
         if (!chemLink) fails++;
+
+        printf("\ndue date parsing\n");
+        const char *stamps[] = {
+            "2026-09-11T16:00:00Z",
+            "2026-09-11T12:00:00.000-04:00",
+            "2026-09-11T12:00:00-04:00",
+            "2026-09-11T16:00:00.123Z",
+        };
+        for (size_t i = 0; i < sizeof(stamps) / sizeof(stamps[0]); i++) {
+            NSDate *d = ParseISO(@(stamps[i]));
+            if (!d) fails++;
+            printf("  %-4s %s\n", d ? "ok" : "FAIL", stamps[i]);
+        }
 
         printf("\nassignment cache\n");
         NSArray *up = LoadUpcoming();
