@@ -5,3 +5,4 @@ cbtest_dbg
 *.o
 schedule.json
 tools/*.tmp
+CLAUDE.md
