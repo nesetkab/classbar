@@ -534,9 +534,19 @@ static NSString *Clip(NSString *s, NSUInteger n) {
 }
 
 - (void)drawRect:(NSRect)dirty {
+    BOOL quitLit = self.hovered && !self.overRefresh;
+
+    if (quitLit) {
+        NSRect hl = NSInsetRect(self.bounds, 5, 2);
+        NSBezierPath *hp = [NSBezierPath bezierPathWithRoundedRect:hl xRadius:6 yRadius:6];
+        [[NSColor selectedContentBackgroundColor] setFill];
+        [hp fill];
+    }
+
     NSDictionary *a = @{
         NSFontAttributeName: [NSFont systemFontOfSize:13],
-        NSForegroundColorAttributeName: [NSColor labelColor]
+        NSForegroundColorAttributeName: quitLit ? [NSColor alternateSelectedControlTextColor]
+                                                : [NSColor labelColor]
     };
     NSSize qs = [@"Quit" sizeWithAttributes:a];
     [@"Quit" drawAtPoint:NSMakePoint(14, NSMidY(self.bounds) - qs.height / 2)
@@ -546,13 +556,14 @@ static NSString *Clip(NSString *s, NSUInteger n) {
     if (self.overRefresh) {
         NSBezierPath *bgp = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(r, -4, -2)
                                                             xRadius:5 yRadius:5];
-        [[NSColor colorWithWhite:0.5 alpha:0.42] setFill];
+        [[NSColor selectedContentBackgroundColor] setFill];
         [bgp fill];
     }
+
     BOOL dark = [[self.effectiveAppearance bestMatchFromAppearancesWithNames:
         @[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]]
         isEqualToString:NSAppearanceNameDarkAqua];
-    NSImage *ri = RefreshIconImage(dark);
+    NSImage *ri = RefreshIconImage(dark || quitLit || self.overRefresh);
     if (ri) {
         NSSize sz = ri.size;
         [ri drawInRect:NSMakeRect(NSMidX(r) - sz.width / 2, NSMidY(r) - sz.height / 2,
