@@ -73,7 +73,8 @@ static int ParseClock(NSString *s) {
             @"room": [c[@"room"] isKindOfClass:[NSString class]] ? c[@"room"] : @"",
             @"start": @(st),
             @"end": @(en),
-            @"canvas": [c[@"canvas"] isKindOfClass:[NSString class]] ? c[@"canvas"] : @""
+            @"canvas": [c[@"canvas"] isKindOfClass:[NSString class]] ? c[@"canvas"] : @"",
+            @"zoom": [c[@"zoom"] isKindOfClass:[NSString class]] ? c[@"zoom"] : @""
         };
         for (NSNumber *dn in c[@"days"]) {
             if (![dn isKindOfClass:[NSNumber class]]) continue;
@@ -206,6 +207,7 @@ static NSArray *cb_series(Schedule *s, int ymd, int mins, int day, int count) {
                 @"when": when,
                 @"room": [hit[@"room"] length] ? hit[@"room"] : @"",
                 @"link": [hit[@"canvas"] length] ? hit[@"canvas"] : s.canvasHome,
+                @"zoom": hit[@"zoom"] ?: @"",
                 @"now": @(now)
             }];
             after = st;
@@ -228,8 +230,10 @@ static NSArray *cb_series(Schedule *s, int ymd, int mins, int day, int count) {
 @property (copy) NSString *when;
 @property (copy) NSString *room;
 @property (copy) NSString *link;
+@property (copy) NSString *zoom;
 @property (strong) NSColor *bg;
 @property (assign) BOOL hovered;
+@property (assign) BOOL cursorPushed;
 @end
 
 @implementation CardView
@@ -243,14 +247,46 @@ static NSArray *cb_series(Schedule *s, int ymd, int mins, int day, int count) {
                owner:self userInfo:nil]];
 }
 
-- (void)mouseEntered:(NSEvent *)e { self.hovered = YES; self.needsDisplay = YES; }
-- (void)mouseExited:(NSEvent *)e  { self.hovered = NO;  self.needsDisplay = YES; }
+- (NSRect)pillRect {
+    if (!self.zoom.length) return NSZeroRect;
+    NSRect box = NSInsetRect(self.bounds, 7, 3);
+    NSDictionary *f = @{ NSFontAttributeName:
+        [NSFont systemFontOfSize:10.5 weight:NSFontWeightSemibold] };
+    CGFloat w = [@"Join Zoom" sizeWithAttributes:f].width + 18;
+    return NSMakeRect(NSMaxX(box) - 9 - w, NSMinY(box) + 5, w, 19);
+}
+
+- (void)pushCursor {
+    if (!self.cursorPushed) { [[NSCursor pointingHandCursor] push]; self.cursorPushed = YES; }
+}
+
+- (void)popCursor {
+    if (self.cursorPushed) { [NSCursor pop]; self.cursorPushed = NO; }
+}
+
+- (void)mouseEntered:(NSEvent *)e {
+    self.hovered = YES; [self pushCursor]; self.needsDisplay = YES;
+}
+
+- (void)mouseExited:(NSEvent *)e {
+    self.hovered = NO;  [self popCursor];  self.needsDisplay = YES;
+}
+
+- (void)viewDidMoveToWindow {
+    [super viewDidMoveToWindow];
+    if (!self.window) { self.hovered = NO; [self popCursor]; }
+}
+
+- (void)dealloc { [self popCursor]; }
 
 - (void)mouseUp:(NSEvent *)e {
-    NSMenuItem *item = self.enclosingMenuItem;
-    [item.menu cancelTracking];
-    if (self.link.length) {
-        NSURL *u = [NSURL URLWithString:self.link];
+    NSPoint pt = [self convertPoint:e.locationInWindow fromView:nil];
+    NSString *target = (self.zoom.length && NSPointInRect(pt, [self pillRect]))
+                     ? self.zoom : self.link;
+    [self popCursor];
+    [self.enclosingMenuItem.menu cancelTracking];
+    if (target.length) {
+        NSURL *u = [NSURL URLWithString:target];
         if (u) [[NSWorkspace sharedWorkspace] openURL:u];
     }
 }
@@ -289,17 +325,35 @@ static NSArray *cb_series(Schedule *s, int ymd, int mins, int day, int count) {
     [head drawAtPoint:NSMakePoint(NSMinX(box) + 9, topY)];
     [self.when drawAtPoint:NSMakePoint(NSMinX(box) + 9, botY) withAttributes:sAttr];
 
-    NSSize rs = [self.room sizeWithAttributes:sAttr];
-    [self.room drawAtPoint:NSMakePoint(NSMaxX(box) - 9 - rs.width, botY) withAttributes:sAttr];
+    if (self.zoom.length) {
+        NSRect pill = [self pillRect];
+        NSBezierPath *pp = [NSBezierPath bezierPathWithRoundedRect:pill
+                                                           xRadius:9.5 yRadius:9.5];
+        [[NSColor colorWithWhite:0.0 alpha:0.16] setFill];
+        [pp fill];
+        NSDictionary *zAttr = @{
+            NSFontAttributeName: [NSFont systemFontOfSize:10.5 weight:NSFontWeightSemibold],
+            NSForegroundColorAttributeName: [NSColor colorWithWhite:0.08 alpha:1.0]
+        };
+        NSSize zs = [@"Join Zoom" sizeWithAttributes:zAttr];
+        [@"Join Zoom" drawAtPoint:NSMakePoint(NSMidX(pill) - zs.width / 2,
+                                              NSMidY(pill) - zs.height / 2 + 0.5)
+                   withAttributes:zAttr];
+    } else {
+        NSSize rs = [self.room sizeWithAttributes:sAttr];
+        [self.room drawAtPoint:NSMakePoint(NSMaxX(box) - 9 - rs.width, botY)
+                withAttributes:sAttr];
+    }
 }
 
 @end
 
 static NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *room,
-                            NSString *link, NSColor *bg, CGFloat width) {
+                            NSString *link, NSString *zoom, NSColor *bg, CGFloat width) {
     CardView *v = [[CardView alloc] initWithFrame:NSMakeRect(0, 0, width, 52)];
     v.autoresizingMask = NSViewWidthSizable;
-    v.title = title; v.code = code; v.when = when; v.room = room; v.link = link; v.bg = bg;
+    v.title = title; v.code = code; v.when = when; v.room = room;
+    v.link = link; v.zoom = zoom; v.bg = bg;
     NSMenuItem *i = [[NSMenuItem alloc] init];
     i.view = v;
     return i;
@@ -470,7 +524,7 @@ static NSImage *CatIcon(void) {
             NSString *t = k == 0 ? e[@"title"]
                         : [NSString stringWithFormat:@"Next: %@", e[@"title"]];
             [menu addItem:CardItem(t, e[@"code"], e[@"when"], e[@"room"], e[@"link"],
-                                   k == 0 ? purple : blue, cardWidth)];
+                                   e[@"zoom"], k == 0 ? purple : blue, cardWidth)];
         }
     } else {
         NSString *title = nil, *when = nil, *room = nil, *link = nil;

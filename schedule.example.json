@@ -12,6 +12,8 @@
     { "name": "Linear Algebra", "code": "MATH 2331", "room": "Math Building 118",
       "days": [1, 3], "start": "13:35", "end": "14:40" },
     { "name": "Writing Seminar", "code": "ENGW 1111", "room": "Online",
-      "days": [0, 2], "start": "14:50", "end": "16:30" }
+      "days": [0, 2], "start": "14:50", "end": "16:30",
+      "canvas": "https://example.instructure.com/courses/1003",
+      "zoom": "https://example.instructure.com/courses/1003/external_tools/35048" }
   ]
 }
