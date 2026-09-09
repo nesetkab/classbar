@@ -308,12 +308,10 @@ static void DrawSymbol(NSString *name, CGFloat pt, NSColor *color, NSRect box) {
     [self addTrackingArea:[[NSTrackingArea alloc]
         initWithRect:self.bounds
              options:NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved |
-                     NSTrackingCursorUpdate | NSTrackingActiveAlways |
+                     NSTrackingActiveAlways |
                      NSTrackingInVisibleRect
                owner:self userInfo:nil]];
 }
-
-- (void)cursorUpdate:(NSEvent *)e { [[NSCursor pointingHandCursor] set]; }
 
 - (void)syncHoverAt:(NSPoint)pt {
     BOOL onPill = self.zoom.length && NSPointInRect(pt, [self pillRect]);
@@ -325,7 +323,6 @@ static void DrawSymbol(NSString *name, CGFloat pt, NSColor *color, NSRect box) {
 }
 
 - (void)mouseMoved:(NSEvent *)e {
-    [[NSCursor pointingHandCursor] set];
     [self syncHoverAt:[self convertPoint:e.locationInWindow fromView:nil]];
 }
 
@@ -344,7 +341,6 @@ static void DrawSymbol(NSString *name, CGFloat pt, NSColor *color, NSRect box) {
 }
 
 - (void)mouseEntered:(NSEvent *)e {
-    [[NSCursor pointingHandCursor] set];
     [self syncHoverAt:[self convertPoint:e.locationInWindow fromView:nil]];
 }
 
@@ -371,9 +367,16 @@ static void DrawSymbol(NSString *name, CGFloat pt, NSColor *color, NSRect box) {
 - (void)drawRect:(NSRect)dirty {
     NSRect box = NSInsetRect(self.bounds, 7, 3);
     NSBezierPath *p = [NSBezierPath bezierPathWithRoundedRect:box xRadius:7 yRadius:7];
-    NSColor *fill = (self.hovered && !self.overPill)
-        ? [self.bg blendedColorWithFraction:0.22 ofColor:[NSColor whiteColor]]
-        : self.bg;
+    NSColor *fill = self.bg;
+    if (self.hovered && !self.overPill) {
+        NSColor *c = [self.bg colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+        CGFloat hue = 0, sat = 0, bri = 0, alp = 1;
+        [c getHue:&hue saturation:&sat brightness:&bri alpha:&alp];
+        fill = [NSColor colorWithHue:hue
+                          saturation:MIN(1.0, sat * 1.75 + 0.05)
+                          brightness:MAX(0.0, bri * 0.985)
+                               alpha:1.0];
+    }
     [fill setFill];
     [p fill];
 
@@ -406,7 +409,7 @@ static void DrawSymbol(NSString *name, CGFloat pt, NSColor *color, NSRect box) {
         NSRect pill = [self pillRect];
         NSBezierPath *pp = [NSBezierPath bezierPathWithRoundedRect:pill
                                                            xRadius:8.5 yRadius:8.5];
-        [[NSColor colorWithWhite:self.overPill ? 0.34 : 0.44 alpha:1.0] setFill];
+        [[NSColor colorWithWhite:self.overPill ? 0.16 : 0.44 alpha:1.0] setFill];
         [pp fill];
         NSDictionary *zAttr = @{
             NSFontAttributeName: [NSFont systemFontOfSize:9.5 weight:NSFontWeightSemibold],
@@ -498,12 +501,10 @@ static NSString *Clip(NSString *s, NSUInteger n) {
     [self addTrackingArea:[[NSTrackingArea alloc]
         initWithRect:self.bounds
              options:NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved |
-                     NSTrackingCursorUpdate | NSTrackingActiveAlways |
+                     NSTrackingActiveAlways |
                      NSTrackingInVisibleRect
                owner:self userInfo:nil]];
 }
-
-- (void)cursorUpdate:(NSEvent *)e { [[NSCursor pointingHandCursor] set]; }
 
 - (void)syncAt:(NSPoint)pt {
     BOOL on = NSPointInRect(pt, NSInsetRect([self refreshRect], -6, -4));
@@ -513,12 +514,10 @@ static NSString *Clip(NSString *s, NSUInteger n) {
 }
 
 - (void)mouseMoved:(NSEvent *)e {
-    [[NSCursor pointingHandCursor] set];
     [self syncAt:[self convertPoint:e.locationInWindow fromView:nil]];
 }
 
 - (void)mouseEntered:(NSEvent *)e {
-    [[NSCursor pointingHandCursor] set];
     [self syncAt:[self convertPoint:e.locationInWindow fromView:nil]];
 }
 
@@ -547,7 +546,7 @@ static NSString *Clip(NSString *s, NSUInteger n) {
     if (self.overRefresh) {
         NSBezierPath *bgp = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(r, -4, -2)
                                                             xRadius:5 yRadius:5];
-        [[NSColor colorWithWhite:0.5 alpha:0.22] setFill];
+        [[NSColor colorWithWhite:0.5 alpha:0.42] setFill];
         [bgp fill];
     }
     BOOL dark = [[self.effectiveAppearance bestMatchFromAppearancesWithNames:
@@ -568,7 +567,6 @@ static NSString *Clip(NSString *s, NSUInteger n) {
 @property (strong) NSStatusItem *status;
 @property (strong) Schedule *schedule;
 @property (assign) NSTimeInterval scheduleStamp;
-@property (strong) NSTimer *cursorTimer;
 @property (copy)   NSString *link;
 @end
 
@@ -597,38 +595,6 @@ static NSString *Clip(NSString *s, NSUInteger n) {
     if (self.schedule && stamp == self.scheduleStamp) return;
     self.schedule = [Schedule loadFromDisk];
     self.scheduleStamp = stamp;
-}
-
-- (void)menuDidClose:(NSMenu *)menu {
-    [self.cursorTimer invalidate];
-    self.cursorTimer = nil;
-    [[NSCursor arrowCursor] set];
-}
-
-- (void)beatCursor {
-    NSPoint screen = [NSEvent mouseLocation];
-    for (NSMenuItem *item in self.status.menu.itemArray) {
-        NSView *v = item.view;
-        if (!v || !v.window) continue;
-        NSRect wr = [v.window convertRectFromScreen:NSMakeRect(screen.x, screen.y, 1, 1)];
-        NSPoint local = [v convertPoint:wr.origin fromView:nil];
-        if (NSPointInRect(local, v.bounds)) {
-            [[NSCursor pointingHandCursor] set];
-            return;
-        }
-    }
-    [[NSCursor arrowCursor] set];
-}
-
-- (void)menuWillOpen:(NSMenu *)menu {
-    [self.cursorTimer invalidate];
-    self.cursorTimer = [NSTimer scheduledTimerWithTimeInterval:0.04
-                                                        target:self
-                                                      selector:@selector(beatCursor)
-                                                      userInfo:nil
-                                                       repeats:YES];
-    [[NSRunLoop currentRunLoop] addTimer:self.cursorTimer
-                                 forMode:NSEventTrackingRunLoopMode];
 }
 
 - (void)menuNeedsUpdate:(NSMenu *)menu {
