@@ -537,7 +537,9 @@ static NSString *Clip(NSString *s, NSUInteger n) {
     BOOL quitLit = self.hovered && !self.overRefresh;
 
     if (quitLit) {
-        NSRect hl = NSInsetRect(self.bounds, 5, 2);
+        NSRect hl = NSMakeRect(5, 2,
+                               NSMinX([self refreshRect]) - 15,
+                               NSHeight(self.bounds) - 4);
         NSBezierPath *hp = [NSBezierPath bezierPathWithRoundedRect:hl xRadius:6 yRadius:6];
         [[NSColor selectedContentBackgroundColor] setFill];
         [hp fill];
@@ -563,7 +565,7 @@ static NSString *Clip(NSString *s, NSUInteger n) {
     BOOL dark = [[self.effectiveAppearance bestMatchFromAppearancesWithNames:
         @[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]]
         isEqualToString:NSAppearanceNameDarkAqua];
-    NSImage *ri = RefreshIconImage(dark || quitLit || self.overRefresh);
+    NSImage *ri = RefreshIconImage(dark || self.overRefresh);
     if (ri) {
         NSSize sz = ri.size;
         [ri drawInRect:NSMakeRect(NSMidX(r) - sz.width / 2, NSMidY(r) - sz.height / 2,
