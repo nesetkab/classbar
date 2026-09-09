@@ -1,5 +1,6 @@
 {
   "canvasHome": "https://example.instructure.com/",
+  "refreshAgent": "com.example.canvas-sync",
   "term": {
     "start": 20260909,
     "end": 20261220,
