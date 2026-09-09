@@ -233,7 +233,7 @@ static NSArray *cb_series(Schedule *s, int ymd, int mins, int day, int count) {
 @property (copy) NSString *zoom;
 @property (strong) NSColor *bg;
 @property (assign) BOOL hovered;
-@property (assign) BOOL cursorPushed;
+@property (assign) BOOL overPill;
 @end
 
 @implementation CardView
@@ -243,8 +243,26 @@ static NSArray *cb_series(Schedule *s, int ymd, int mins, int day, int count) {
     for (NSTrackingArea *a in [self.trackingAreas copy]) [self removeTrackingArea:a];
     [self addTrackingArea:[[NSTrackingArea alloc]
         initWithRect:self.bounds
-             options:NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways
+             options:NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved |
+                     NSTrackingCursorUpdate | NSTrackingActiveAlways |
+                     NSTrackingInVisibleRect
                owner:self userInfo:nil]];
+}
+
+- (void)cursorUpdate:(NSEvent *)e { [[NSCursor pointingHandCursor] set]; }
+
+- (void)syncHoverAt:(NSPoint)pt {
+    BOOL onPill = self.zoom.length && NSPointInRect(pt, [self pillRect]);
+    if (onPill != self.overPill || !self.hovered) {
+        self.overPill = onPill;
+        self.hovered = YES;
+        self.needsDisplay = YES;
+    }
+}
+
+- (void)mouseMoved:(NSEvent *)e {
+    [[NSCursor pointingHandCursor] set];
+    [self syncHoverAt:[self convertPoint:e.locationInWindow fromView:nil]];
 }
 
 - (NSRect)pillRect {
@@ -252,38 +270,33 @@ static NSArray *cb_series(Schedule *s, int ymd, int mins, int day, int count) {
     NSRect box = NSInsetRect(self.bounds, 7, 3);
     NSDictionary *f = @{ NSFontAttributeName:
         [NSFont systemFontOfSize:10.5 weight:NSFontWeightSemibold] };
-    CGFloat w = [@"Join Zoom" sizeWithAttributes:f].width + 18;
-    return NSMakeRect(NSMaxX(box) - 9 - w, NSMinY(box) + 5, w, 19);
-}
-
-- (void)pushCursor {
-    if (!self.cursorPushed) { [[NSCursor pointingHandCursor] push]; self.cursorPushed = YES; }
-}
-
-- (void)popCursor {
-    if (self.cursorPushed) { [NSCursor pop]; self.cursorPushed = NO; }
+    CGFloat w = ceil([@"Join Zoom" sizeWithAttributes:f].width) + 16;
+    CGFloat h = 17;
+    CGFloat x = NSMaxX(box) - 8 - w;
+    CGFloat y = NSMinY(box) + (NSHeight(box) * 0.5 - h) * 0.5 + 3;
+    if (x < NSMinX(box) + 8) x = NSMinX(box) + 8;
+    if (y < NSMinY(box) + 3) y = NSMinY(box) + 3;
+    return NSMakeRect(x, y, w, h);
 }
 
 - (void)mouseEntered:(NSEvent *)e {
-    self.hovered = YES; [self pushCursor]; self.needsDisplay = YES;
+    [[NSCursor pointingHandCursor] set];
+    [self syncHoverAt:[self convertPoint:e.locationInWindow fromView:nil]];
 }
 
 - (void)mouseExited:(NSEvent *)e {
-    self.hovered = NO;  [self popCursor];  self.needsDisplay = YES;
+    self.hovered = NO; self.overPill = NO; self.needsDisplay = YES;
 }
 
 - (void)viewDidMoveToWindow {
     [super viewDidMoveToWindow];
-    if (!self.window) { self.hovered = NO; [self popCursor]; }
+    if (!self.window) { self.hovered = NO; self.overPill = NO; }
 }
-
-- (void)dealloc { [self popCursor]; }
 
 - (void)mouseUp:(NSEvent *)e {
     NSPoint pt = [self convertPoint:e.locationInWindow fromView:nil];
     NSString *target = (self.zoom.length && NSPointInRect(pt, [self pillRect]))
                      ? self.zoom : self.link;
-    [self popCursor];
     [self.enclosingMenuItem.menu cancelTracking];
     if (target.length) {
         NSURL *u = [NSURL URLWithString:target];
@@ -294,7 +307,7 @@ static NSArray *cb_series(Schedule *s, int ymd, int mins, int day, int count) {
 - (void)drawRect:(NSRect)dirty {
     NSRect box = NSInsetRect(self.bounds, 7, 3);
     NSBezierPath *p = [NSBezierPath bezierPathWithRoundedRect:box xRadius:7 yRadius:7];
-    NSColor *fill = self.hovered
+    NSColor *fill = (self.hovered && !self.overPill)
         ? [self.bg blendedColorWithFraction:0.22 ofColor:[NSColor whiteColor]]
         : self.bg;
     [fill setFill];
@@ -328,8 +341,8 @@ static NSArray *cb_series(Schedule *s, int ymd, int mins, int day, int count) {
     if (self.zoom.length) {
         NSRect pill = [self pillRect];
         NSBezierPath *pp = [NSBezierPath bezierPathWithRoundedRect:pill
-                                                           xRadius:9.5 yRadius:9.5];
-        [[NSColor colorWithWhite:0.0 alpha:0.16] setFill];
+                                                           xRadius:8.5 yRadius:8.5];
+        [[NSColor colorWithWhite:0.0 alpha:self.overPill ? 0.34 : 0.16] setFill];
         [pp fill];
         NSDictionary *zAttr = @{
             NSFontAttributeName: [NSFont systemFontOfSize:10.5 weight:NSFontWeightSemibold],
@@ -513,7 +526,7 @@ static NSImage *CatIcon(void) {
         CGFloat w = [label sizeWithAttributes:rowFont].width;
         if (w > rowMax) rowMax = w;
     }
-    CGFloat cardWidth = MAX(292.0, ceil(rowMax) + 42.0);
+    CGFloat cardWidth = MAX(292.0, ceil(rowMax) + 26.0);
 
     NSArray *series = cb_series(self.schedule, ymd, mins, day, 2);
     if (series.count) {
