@@ -568,6 +568,7 @@ static NSString *Clip(NSString *s, NSUInteger n) {
 @property (strong) NSStatusItem *status;
 @property (strong) Schedule *schedule;
 @property (assign) NSTimeInterval scheduleStamp;
+@property (strong) NSTimer *cursorTimer;
 @property (copy)   NSString *link;
 @end
 
@@ -596,6 +597,38 @@ static NSString *Clip(NSString *s, NSUInteger n) {
     if (self.schedule && stamp == self.scheduleStamp) return;
     self.schedule = [Schedule loadFromDisk];
     self.scheduleStamp = stamp;
+}
+
+- (void)menuDidClose:(NSMenu *)menu {
+    [self.cursorTimer invalidate];
+    self.cursorTimer = nil;
+    [[NSCursor arrowCursor] set];
+}
+
+- (void)beatCursor {
+    NSPoint screen = [NSEvent mouseLocation];
+    for (NSMenuItem *item in self.status.menu.itemArray) {
+        NSView *v = item.view;
+        if (!v || !v.window) continue;
+        NSRect wr = [v.window convertRectFromScreen:NSMakeRect(screen.x, screen.y, 1, 1)];
+        NSPoint local = [v convertPoint:wr.origin fromView:nil];
+        if (NSPointInRect(local, v.bounds)) {
+            [[NSCursor pointingHandCursor] set];
+            return;
+        }
+    }
+    [[NSCursor arrowCursor] set];
+}
+
+- (void)menuWillOpen:(NSMenu *)menu {
+    [self.cursorTimer invalidate];
+    self.cursorTimer = [NSTimer scheduledTimerWithTimeInterval:0.04
+                                                        target:self
+                                                      selector:@selector(beatCursor)
+                                                      userInfo:nil
+                                                       repeats:YES];
+    [[NSRunLoop currentRunLoop] addTimer:self.cursorTimer
+                                 forMode:NSEventTrackingRunLoopMode];
 }
 
 - (void)menuNeedsUpdate:(NSMenu *)menu {
