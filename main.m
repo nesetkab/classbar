@@ -69,6 +69,7 @@ static int ParseClock(NSString *s) {
         if (![c[@"name"] isKindOfClass:[NSString class]]) continue;
         NSDictionary *entry = @{
             @"name": c[@"name"],
+            @"code": [c[@"code"] isKindOfClass:[NSString class]] ? c[@"code"] : @"",
             @"room": [c[@"room"] isKindOfClass:[NSString class]] ? c[@"room"] : @"",
             @"start": @(st),
             @"end": @(en),
@@ -201,8 +202,10 @@ static NSArray *cb_series(Schedule *s, int ymd, int mins, int day, int count) {
 
             [out addObject:@{
                 @"title": hit[@"name"],
+                @"code": hit[@"code"] ?: @"",
                 @"when": when,
                 @"room": [hit[@"room"] length] ? hit[@"room"] : @"",
+                @"link": [hit[@"canvas"] length] ? hit[@"canvas"] : s.canvasHome,
                 @"now": @(now)
             }];
             after = st;
@@ -221,17 +224,44 @@ static NSArray *cb_series(Schedule *s, int ymd, int mins, int day, int count) {
 
 @interface CardView : NSView
 @property (copy) NSString *title;
+@property (copy) NSString *code;
 @property (copy) NSString *when;
 @property (copy) NSString *room;
+@property (copy) NSString *link;
 @property (strong) NSColor *bg;
+@property (assign) BOOL hovered;
 @end
 
 @implementation CardView
 
+- (void)updateTrackingAreas {
+    [super updateTrackingAreas];
+    for (NSTrackingArea *a in [self.trackingAreas copy]) [self removeTrackingArea:a];
+    [self addTrackingArea:[[NSTrackingArea alloc]
+        initWithRect:self.bounds
+             options:NSTrackingMouseEnteredAndExited | NSTrackingActiveAlways
+               owner:self userInfo:nil]];
+}
+
+- (void)mouseEntered:(NSEvent *)e { self.hovered = YES; self.needsDisplay = YES; }
+- (void)mouseExited:(NSEvent *)e  { self.hovered = NO;  self.needsDisplay = YES; }
+
+- (void)mouseUp:(NSEvent *)e {
+    NSMenuItem *item = self.enclosingMenuItem;
+    [item.menu cancelTracking];
+    if (self.link.length) {
+        NSURL *u = [NSURL URLWithString:self.link];
+        if (u) [[NSWorkspace sharedWorkspace] openURL:u];
+    }
+}
+
 - (void)drawRect:(NSRect)dirty {
     NSRect box = NSInsetRect(self.bounds, 7, 3);
     NSBezierPath *p = [NSBezierPath bezierPathWithRoundedRect:box xRadius:7 yRadius:7];
-    [self.bg setFill];
+    NSColor *fill = self.hovered
+        ? [self.bg blendedColorWithFraction:0.22 ofColor:[NSColor whiteColor]]
+        : self.bg;
+    [fill setFill];
     [p fill];
 
     NSDictionary *tAttr = @{
@@ -246,7 +276,17 @@ static NSArray *cb_series(Schedule *s, int ymd, int mins, int day, int count) {
     CGFloat topY = NSMaxY(box) - 22;
     CGFloat botY = NSMinY(box) + 7;
 
-    [self.title drawAtPoint:NSMakePoint(NSMinX(box) + 9, topY) withAttributes:tAttr];
+    NSMutableAttributedString *head = [[NSMutableAttributedString alloc]
+        initWithString:self.title attributes:tAttr];
+    if (self.code.length) {
+        NSDictionary *cAttr = @{
+            NSFontAttributeName: [NSFont systemFontOfSize:12 weight:NSFontWeightRegular],
+            NSForegroundColorAttributeName: [NSColor colorWithWhite:0.26 alpha:1.0]
+        };
+        [head appendAttributedString:[[NSAttributedString alloc]
+            initWithString:[NSString stringWithFormat:@"  (%@)", self.code] attributes:cAttr]];
+    }
+    [head drawAtPoint:NSMakePoint(NSMinX(box) + 9, topY)];
     [self.when drawAtPoint:NSMakePoint(NSMinX(box) + 9, botY) withAttributes:sAttr];
 
     NSSize rs = [self.room sizeWithAttributes:sAttr];
@@ -255,9 +295,11 @@ static NSArray *cb_series(Schedule *s, int ymd, int mins, int day, int count) {
 
 @end
 
-static NSMenuItem *CardItem(NSString *title, NSString *when, NSString *room, NSColor *bg) {
-    CardView *v = [[CardView alloc] initWithFrame:NSMakeRect(0, 0, 292, 52)];
-    v.title = title; v.when = when; v.room = room; v.bg = bg;
+static NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *room,
+                            NSString *link, NSColor *bg, CGFloat width) {
+    CardView *v = [[CardView alloc] initWithFrame:NSMakeRect(0, 0, width, 52)];
+    v.autoresizingMask = NSViewWidthSizable;
+    v.title = title; v.code = code; v.when = when; v.room = room; v.link = link; v.bg = bg;
     NSMenuItem *i = [[NSMenuItem alloc] init];
     i.view = v;
     return i;
@@ -404,6 +446,21 @@ static NSImage *CatIcon(void) {
     int day  = (int)p.weekday - 2;
     if (day < 0) day = 6;
 
+    NSArray *up = LoadUpcoming();
+
+    NSDictionary *rowFont = @{ NSFontAttributeName: [NSFont systemFontOfSize:12] };
+    CGFloat rowMax = 0;
+    for (NSDictionary *a in up) {
+        if (![a isKindOfClass:[NSDictionary class]]) continue;
+        NSString *nm = a[@"name"];
+        if (![nm isKindOfClass:[NSString class]]) continue;
+        NSString *label = [NSString stringWithFormat:@"%@   %@",
+                           DueLabel(cal, ParseISO(a[@"due"])), Clip(nm, 32)];
+        CGFloat w = [label sizeWithAttributes:rowFont].width;
+        if (w > rowMax) rowMax = w;
+    }
+    CGFloat cardWidth = MAX(292.0, ceil(rowMax) + 42.0);
+
     NSArray *series = cb_series(self.schedule, ymd, mins, day, 2);
     if (series.count) {
         NSColor *purple = [NSColor colorWithSRGBRed:0.722 green:0.655 blue:0.945 alpha:1.0];
@@ -412,7 +469,8 @@ static NSImage *CatIcon(void) {
             NSDictionary *e = series[k];
             NSString *t = k == 0 ? e[@"title"]
                         : [NSString stringWithFormat:@"Next: %@", e[@"title"]];
-            [menu addItem:CardItem(t, e[@"when"], e[@"room"], k == 0 ? purple : blue)];
+            [menu addItem:CardItem(t, e[@"code"], e[@"when"], e[@"room"], e[@"link"],
+                                   k == 0 ? purple : blue, cardWidth)];
         }
     } else {
         NSString *title = nil, *when = nil, *room = nil, *link = nil;
@@ -421,9 +479,7 @@ static NSImage *CatIcon(void) {
         if (when.length) [self sub:menu text:when];
     }
 
-    NSArray *up = LoadUpcoming();
     if (up.count) {
-        [menu addItem:[NSMenuItem separatorItem]];
         for (NSDictionary *a in up) {
             if (![a isKindOfClass:[NSDictionary class]]) continue;
             NSString *nm = a[@"name"], *cs = a[@"course"], *ur = a[@"url"];
@@ -452,8 +508,6 @@ static NSImage *CatIcon(void) {
             [menu addItem:it];
         }
     }
-
-    [menu addItem:[NSMenuItem separatorItem]];
 
     NSMenuItem *q = [[NSMenuItem alloc] initWithTitle:@"Quit"
                                                action:@selector(quitApp)
