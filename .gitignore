@@ -4,3 +4,4 @@ cbtest_dbg
 *.dSYM
 *.o
 schedule.json
+tools/*.tmp
