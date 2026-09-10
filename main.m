@@ -27,7 +27,7 @@ static int ParseClock(NSString *s) {
 @property (assign) int termStart;
 @property (assign) int termEnd;
 @property (copy)   NSString *beforeLabel;
-@property (copy)   NSString *refreshAgent;
+@property (copy)   NSString *canvasFeed;
 @property (copy)   NSString *loadError;
 @end
 
@@ -55,7 +55,7 @@ static int ParseClock(NSString *s) {
     }
 
     if ([root[@"canvasHome"] isKindOfClass:[NSString class]]) s.canvasHome = root[@"canvasHome"];
-    if ([root[@"refreshAgent"] isKindOfClass:[NSString class]]) s.refreshAgent = root[@"refreshAgent"];
+    if ([root[@"canvasFeed"] isKindOfClass:[NSString class]]) s.canvasFeed = root[@"canvasFeed"];
     NSDictionary *term = root[@"term"];
     if ([term isKindOfClass:[NSDictionary class]]) {
         if ([term[@"start"] isKindOfClass:[NSNumber class]]) s.termStart = [term[@"start"] intValue];
@@ -492,6 +492,194 @@ static NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSS
     return i;
 }
 
+static NSISO8601DateFormatter *ISOFormatter(void) {
+    static NSISO8601DateFormatter *f;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ f = [[NSISO8601DateFormatter alloc] init]; });
+    return f;
+}
+
+static NSArray *IcsUnfold(NSString *text) {
+    NSArray *raw = [[text stringByReplacingOccurrencesOfString:@"\r\n" withString:@"\n"]
+        componentsSeparatedByCharactersInSet:
+            [NSCharacterSet characterSetWithCharactersInString:@"\n\r"]];
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSString *line in raw) {
+        if (out.count && ([line hasPrefix:@" "] || [line hasPrefix:@"\t"]))
+            out[out.count - 1] = [out.lastObject
+                stringByAppendingString:[line substringFromIndex:1]];
+        else
+            [out addObject:line];
+    }
+    return out;
+}
+
+static NSString *IcsUnescape(NSString *v) {
+    NSString *s = [v stringByReplacingOccurrencesOfString:@"\\n" withString:@" "];
+    s = [s stringByReplacingOccurrencesOfString:@"\\N" withString:@" "];
+    s = [s stringByReplacingOccurrencesOfString:@"\\," withString:@","];
+    s = [s stringByReplacingOccurrencesOfString:@"\\;" withString:@";"];
+    s = [s stringByReplacingOccurrencesOfString:@"\\\\" withString:@"\\"];
+    return [s stringByTrimmingCharactersInSet:
+        [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+}
+
+static NSDate *IcsDate(NSString *tzid, NSString *value) {
+    if (value.length < 8) return nil;
+    NSDateFormatter *f = [[NSDateFormatter alloc] init];
+    f.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+    if (value.length < 15) {
+        f.dateFormat = @"yyyyMMdd";
+        f.timeZone = [NSTimeZone localTimeZone];
+        return [f dateFromString:[value substringToIndex:8]];
+    }
+    f.dateFormat = @"yyyyMMdd'T'HHmmss";
+    if ([value hasSuffix:@"Z"])
+        f.timeZone = [NSTimeZone timeZoneWithAbbreviation:@"UTC"];
+    else
+        f.timeZone = (tzid.length ? [NSTimeZone timeZoneWithName:tzid] : nil)
+                   ?: [NSTimeZone localTimeZone];
+    return [f dateFromString:[value substringToIndex:15]];
+}
+
+static NSString *FirstGroup(NSString *text, NSString *pattern) {
+    if (!text.length) return nil;
+    NSRegularExpression *re = [NSRegularExpression regularExpressionWithPattern:pattern
+                                                                       options:0
+                                                                         error:NULL];
+    NSTextCheckingResult *m = [re firstMatchInString:text options:0
+                                               range:NSMakeRange(0, text.length)];
+    if (!m || m.numberOfRanges < 2) return nil;
+    return [text substringWithRange:[m rangeAtIndex:1]];
+}
+
+static NSString *AssignmentURL(NSString *raw, NSString *home) {
+    NSString *course = FirstGroup(raw, @"course_([0-9]+)");
+    NSString *assignment = FirstGroup(raw, @"assignment_([0-9]+)");
+    if (!course || !assignment || !home.length) return raw;
+    NSString *base = [home hasSuffix:@"/"] ? home : [home stringByAppendingString:@"/"];
+    return [NSString stringWithFormat:@"%@courses/%@/assignments/%@",
+                                      base, course, assignment];
+}
+
+static void SplitSummary(NSString *summary, NSString **name, NSString **course) {
+    *name = summary;
+    *course = nil;
+    if (![summary hasSuffix:@"]"]) return;
+    NSRange open = [summary rangeOfString:@"[" options:NSBackwardsSearch];
+    if (open.location == NSNotFound) return;
+    NSCharacterSet *ws = [NSCharacterSet whitespaceAndNewlineCharacterSet];
+    NSRange inner = NSMakeRange(open.location + 1,
+                                summary.length - open.location - 2);
+    NSString *tail = [[summary substringWithRange:inner] stringByTrimmingCharactersInSet:ws];
+    NSString *head = [[summary substringToIndex:open.location]
+                      stringByTrimmingCharactersInSet:ws];
+    if (!head.length || !tail.length) return;
+    *name = head;
+    *course = tail;
+}
+
+static NSArray *IcsEvents(NSString *text) {
+    NSMutableArray *out = [NSMutableArray array];
+    NSMutableDictionary *event = nil;
+    NSCharacterSet *ws = [NSCharacterSet whitespaceAndNewlineCharacterSet];
+    for (NSString *line in IcsUnfold(text)) {
+        NSRange colon = [line rangeOfString:@":"];
+        NSString *head = colon.location == NSNotFound ? line
+                       : [line substringToIndex:colon.location];
+        NSString *value = colon.location == NSNotFound ? @""
+                        : [line substringFromIndex:colon.location + 1];
+        NSArray *parts = [head componentsSeparatedByString:@";"];
+        NSString *name = [parts[0] uppercaseString];
+
+        if ([name isEqualToString:@"BEGIN"] && [value hasPrefix:@"VEVENT"]) {
+            event = [NSMutableDictionary dictionary];
+            continue;
+        }
+        if ([name isEqualToString:@"END"] && [value hasPrefix:@"VEVENT"]) {
+            if (event) [out addObject:event];
+            event = nil;
+            continue;
+        }
+        if (!event) continue;
+
+        if ([name isEqualToString:@"DTSTART"] || [name isEqualToString:@"DTEND"]) {
+            NSString *tzid = nil;
+            for (NSUInteger i = 1; i < parts.count; i++)
+                if ([[parts[i] uppercaseString] hasPrefix:@"TZID="])
+                    tzid = [parts[i] substringFromIndex:5];
+            NSDate *d = IcsDate(tzid, [value stringByTrimmingCharactersInSet:ws]);
+            if (d) event[name] = d;
+        } else if ([name isEqualToString:@"SUMMARY"] ||
+                   [name isEqualToString:@"LOCATION"] ||
+                   [name isEqualToString:@"UID"] ||
+                   [name isEqualToString:@"URL"]) {
+            event[name] = IcsUnescape(value);
+        } else if ([name isEqualToString:@"RRULE"]) {
+            event[name] = [[value stringByTrimmingCharactersInSet:ws] uppercaseString];
+        }
+    }
+    return out;
+}
+
+static NSArray *cb_ics_items(NSString *text, NSString *canvasHome) {
+    NSMutableArray *items = [NSMutableArray array];
+    for (NSDictionary *e in IcsEvents(text)) {
+        NSString *summary = e[@"SUMMARY"];
+        NSDate *due = e[@"DTSTART"] ?: e[@"DTEND"];
+        if (!summary.length || !due) continue;
+
+        NSString *uid = e[@"UID"] ?: @"";
+        NSString *url = e[@"URL"] ?: @"";
+        if (![uid containsString:@"assignment"] && ![url containsString:@"assignment_"])
+            continue;
+
+        NSString *name = nil, *course = nil;
+        SplitSummary(summary, &name, &course);
+        NSMutableDictionary *item = [NSMutableDictionary dictionary];
+        item[@"name"] = name;
+        item[@"due"] = [ISOFormatter() stringFromDate:due];
+        if (course) item[@"course"] = course;
+        NSString *link = AssignmentURL(url, canvasHome);
+        if (link.length) item[@"url"] = link;
+        [items addObject:item];
+    }
+
+    [items sortUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+        return [a[@"due"] compare:b[@"due"]];
+    }];
+    return items;
+}
+
+static NSArray *cb_ics_window(NSArray *items, NSDate *now, int backDays,
+                              int aheadDays, NSUInteger cap) {
+    NSDate *from = [now dateByAddingTimeInterval:-backDays * 86400.0];
+    NSDate *to = [now dateByAddingTimeInterval:aheadDays * 86400.0];
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSDictionary *a in items) {
+        NSDate *due = [ISOFormatter() dateFromString:a[@"due"]];
+        if (!due) continue;
+        if ([due compare:from] == NSOrderedAscending) continue;
+        if ([due compare:to] == NSOrderedDescending) continue;
+        [out addObject:a];
+        if (out.count >= cap) break;
+    }
+    return out;
+}
+
+static BOOL WriteCache(NSArray *items) {
+    NSDictionary *root = @{ @"generated": [ISOFormatter() stringFromDate:[NSDate date]],
+                            @"items": items ?: @[] };
+    NSData *d = [NSJSONSerialization dataWithJSONObject:root
+                                                options:NSJSONWritingPrettyPrinted
+                                                  error:NULL];
+    if (!d) return NO;
+    [[NSFileManager defaultManager]
+        createDirectoryAtPath:[CachePath() stringByDeletingLastPathComponent]
+      withIntermediateDirectories:YES attributes:nil error:NULL];
+    return [d writeToFile:CachePath() atomically:YES];
+}
+
 static NSDictionary *LoadCache(void) {
     NSData *d = [NSData dataWithContentsOfFile:CachePath()];
     if (!d) return nil;
@@ -509,12 +697,7 @@ static NSString *CacheAgeLabel(void) {
     if (!c) return @"no data";
     NSDate *gen = nil;
     id g = c[@"generated"];
-    if ([g isKindOfClass:[NSString class]]) {
-        static NSISO8601DateFormatter *f;
-        static dispatch_once_t once;
-        dispatch_once(&once, ^{ f = [[NSISO8601DateFormatter alloc] init]; });
-        gen = [f dateFromString:g];
-    }
+    if ([g isKindOfClass:[NSString class]]) gen = [ISOFormatter() dateFromString:g];
     if (!gen) return @"";
     NSTimeInterval age = -[gen timeIntervalSinceNow];
     if (age < 5400) return @"";
@@ -591,9 +774,11 @@ static NSString *Clip(NSString *s, NSUInteger n) {
 }
 
 - (void)syncAt:(NSPoint)pt {
-    BOOL on = NSPointInRect(pt, NSInsetRect([self refreshRect], -6, -4));
-    if (on != self.overRefresh || !self.hovered) {
-        self.overRefresh = on; self.hovered = YES; self.needsDisplay = YES;
+    BOOL refresh = NSPointInRect(pt, NSInsetRect([self refreshRect], -4, -4));
+    if (refresh != self.overRefresh || !self.hovered) {
+        self.overRefresh = refresh;
+        self.hovered = YES;
+        self.needsDisplay = YES;
     }
 }
 
@@ -606,15 +791,35 @@ static NSString *Clip(NSString *s, NSUInteger n) {
 }
 
 - (void)mouseExited:(NSEvent *)e {
-    self.hovered = NO; self.overRefresh = NO; self.needsDisplay = YES;
+    self.hovered = NO;
+    self.overRefresh = NO;
+    self.needsDisplay = YES;
 }
 
 - (void)mouseUp:(NSEvent *)e {
     NSPoint pt = [self convertPoint:e.locationInWindow fromView:nil];
-    BOOL refresh = NSPointInRect(pt, NSInsetRect([self refreshRect], -6, -4));
-    if (!refresh) [self.enclosingMenuItem.menu cancelTracking];
-    SEL sel = refresh ? self.refreshAction : self.quitAction;
+    SEL sel;
+    if (NSPointInRect(pt, NSInsetRect([self refreshRect], -4, -4))) {
+        sel = self.refreshAction;
+    } else {
+        [self.enclosingMenuItem.menu cancelTracking];
+        sel = self.quitAction;
+    }
     if (self.target && sel) ((void (*)(id, SEL))objc_msgSend)(self.target, sel);
+}
+
+- (void)drawIcon:(NSImage *)icon inRect:(NSRect)r lit:(BOOL)lit {
+    if (lit) {
+        NSBezierPath *bgp = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(r, -4, -2)
+                                                            xRadius:5 yRadius:5];
+        [[NSColor selectedContentBackgroundColor] setFill];
+        [bgp fill];
+    }
+    if (!icon) return;
+    NSSize sz = icon.size;
+    [icon drawInRect:NSMakeRect(NSMidX(r) - sz.width / 2, NSMidY(r) - sz.height / 2,
+                                sz.width, sz.height)
+            fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1.0];
 }
 
 - (void)drawRect:(NSRect)dirty {
@@ -649,24 +854,12 @@ static NSString *Clip(NSString *s, NSUInteger n) {
                   withAttributes:sa];
     }
 
-    NSRect r = [self refreshRect];
-    if (self.overRefresh) {
-        NSBezierPath *bgp = [NSBezierPath bezierPathWithRoundedRect:NSInsetRect(r, -4, -2)
-                                                            xRadius:5 yRadius:5];
-        [[NSColor selectedContentBackgroundColor] setFill];
-        [bgp fill];
-    }
-
     BOOL dark = [[self.effectiveAppearance bestMatchFromAppearancesWithNames:
         @[NSAppearanceNameAqua, NSAppearanceNameDarkAqua]]
         isEqualToString:NSAppearanceNameDarkAqua];
-    NSImage *ri = RefreshIconImage(dark || self.overRefresh);
-    if (ri) {
-        NSSize sz = ri.size;
-        [ri drawInRect:NSMakeRect(NSMidX(r) - sz.width / 2, NSMidY(r) - sz.height / 2,
-                                  sz.width, sz.height)
-              fromRect:NSZeroRect operation:NSCompositingOperationSourceOver fraction:1.0];
-    }
+
+    [self drawIcon:RefreshIconImage(dark || self.overRefresh)
+            inRect:[self refreshRect] lit:self.overRefresh];
 }
 
 @end
@@ -677,9 +870,7 @@ static NSString *Clip(NSString *s, NSUInteger n) {
 @property (assign) NSTimeInterval scheduleStamp;
 @property (weak)   FooterView *footer;
 @property (weak)   NSMenu *liveMenu;
-@property (strong) NSTimer *syncPoll;
-@property (assign) NSTimeInterval syncStartedAt;
-@property (assign) NSTimeInterval cacheStampAtSync;
+@property (assign) BOOL fetching;
 @property (copy)   NSString *link;
 @end
 
@@ -699,6 +890,8 @@ static NSString *Clip(NSString *s, NSUInteger n) {
     m.delegate = self;
     m.autoenablesItems = NO;
     self.status.menu = m;
+
+    [self refreshIfStale];
 }
 
 - (void)reloadScheduleIfChanged {
@@ -802,12 +995,14 @@ static NSString *Clip(NSString *s, NSUInteger n) {
     fv.target = self;
     fv.quitAction = @selector(quitApp);
     fv.refreshAction = @selector(refreshNow);
-    fv.status = self.syncPoll ? @"Syncing…" : CacheAgeLabel();
+    fv.status = self.fetching ? @"Syncing…" : CacheAgeLabel();
     self.footer = fv;
     self.liveMenu = menu;
     NSMenuItem *q = [[NSMenuItem alloc] init];
     q.view = fv;
     [menu addItem:q];
+
+    [self refreshIfStale];
 }
 
 - (void)head:(NSMenu *)m text:(NSString *)s {
@@ -854,60 +1049,70 @@ static NSString *Clip(NSString *s, NSUInteger n) {
 }
 
 - (void)refreshNow {
-    if (self.syncPoll) return;
+    if (self.fetching) return;
 
-    NSString *label = self.schedule.refreshAgent;
-    if (!label.length) {
+    NSString *feed = self.schedule.canvasFeed;
+    if (!feed.length) {
         self.scheduleStamp = 0;
-        [self setFooterStatus:@"No sync agent"];
+        [self setFooterStatus:@"No Canvas feed"];
         return;
     }
 
-    self.cacheStampAtSync = [self cacheStamp];
-    self.syncStartedAt = [NSDate timeIntervalSinceReferenceDate];
+    NSString *https = [feed hasPrefix:@"webcal://"]
+        ? [@"https://" stringByAppendingString:[feed substringFromIndex:9]]
+        : feed;
+    NSURL *url = [NSURL URLWithString:https];
+    if (!url.host) {
+        [self setFooterStatus:@"Bad feed URL"];
+        return;
+    }
+
+    self.fetching = YES;
     [self setFooterStatus:@"Syncing…"];
 
-    NSTask *t = [[NSTask alloc] init];
-    t.executableURL = [NSURL fileURLWithPath:@"/bin/launchctl"];
-    t.arguments = @[@"kickstart", @"-k",
-                    [NSString stringWithFormat:@"gui/%u/%@", getuid(), label]];
-    if (![t launchAndReturnError:NULL]) {
-        [self setFooterStatus:@"Sync failed"];
+    NSString *home = self.schedule.canvasHome;
+    NSURLRequest *req = [NSURLRequest requestWithURL:url
+                                        cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
+                                    timeoutInterval:20];
+    __weak ClassBar *weak = self;
+    NSURLSessionDataTask *task = [[NSURLSession sharedSession]
+        dataTaskWithRequest:req
+          completionHandler:^(NSData *data, NSURLResponse *resp, NSError *err) {
+        NSInteger code = [resp isKindOfClass:[NSHTTPURLResponse class]]
+                       ? [(NSHTTPURLResponse *)resp statusCode] : 200;
+        NSString *body = (data && !err && code < 400)
+            ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
+        NSArray *items = body ? cb_ics_window(cb_ics_items(body, home),
+                                              [NSDate date], 14, 21, 25)
+                              : nil;
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [weak finishFetch:items failure:(code >= 400 ? @"Canvas said no" : nil)];
+        });
+    }];
+    [task resume];
+}
+
+- (void)finishFetch:(NSArray *)items failure:(NSString *)failure {
+    self.fetching = NO;
+    if (!items) {
+        [self setFooterStatus:failure ?: @"Fetch failed"];
         return;
     }
-
-    self.syncPoll = [NSTimer timerWithTimeInterval:0.5
-                                            target:self
-                                          selector:@selector(pollSync)
-                                          userInfo:nil
-                                           repeats:YES];
-    [[NSRunLoop currentRunLoop] addTimer:self.syncPoll forMode:NSEventTrackingRunLoopMode];
-    [[NSRunLoop currentRunLoop] addTimer:self.syncPoll forMode:NSDefaultRunLoopMode];
-}
-
-- (void)stopPolling {
-    [self.syncPoll invalidate];
-    self.syncPoll = nil;
-}
-
-- (void)pollSync {
-    NSTimeInterval elapsed = [NSDate timeIntervalSinceReferenceDate] - self.syncStartedAt;
-
-    if ([self cacheStamp] > self.cacheStampAtSync) {
-        [self stopPolling];
-        [self setFooterStatus:@"Updated"];
-        NSMenu *m = self.liveMenu;
-        if (m.numberOfItems > 0) [self menuNeedsUpdate:m];
-        [self setFooterStatus:@"Updated"];
+    if (!WriteCache(items)) {
+        [self setFooterStatus:@"Cache write failed"];
         return;
     }
-    if (elapsed > 120) {
-        [self stopPolling];
-        [self setFooterStatus:@"Sync timed out"];
-    }
+    NSMenu *m = self.liveMenu;
+    if (m.numberOfItems > 0) [self menuNeedsUpdate:m];
+    [self setFooterStatus:@"Updated"];
 }
 
-- (void)menuDidClose:(NSMenu *)menu { [self stopPolling]; }
+- (void)refreshIfStale {
+    if (self.fetching || !self.schedule.canvasFeed.length) return;
+    NSTimeInterval stamp = [self cacheStamp];
+    if (stamp > 0 && [NSDate date].timeIntervalSince1970 - stamp < 1800) return;
+    [self refreshNow];
+}
 
 - (void)quitApp { [NSApp terminate:nil]; }
 
@@ -949,10 +1154,29 @@ static void T2(const char *label, int ymd, int mins, int day,
     }
 }
 
-int main(void) {
+int main(int argc, char **argv) {
     @autoreleasepool {
         [NSApplication sharedApplication];
         gSched = [Schedule loadFromDisk];
+
+        if (argc > 1) {
+            NSString *text = [NSString stringWithContentsOfFile:@(argv[1])
+                                                       encoding:NSUTF8StringEncoding
+                                                          error:NULL];
+            if (!text) { printf("cannot read %s\n", argv[1]); return 1; }
+            NSArray *all = cb_ics_items(text, gSched.canvasHome);
+            NSArray *kept = cb_ics_window(all, [NSDate date], 14, 21, 25);
+            printf("%s\n  %lu assignments, %lu in window\n", argv[1],
+                   (unsigned long)all.count, (unsigned long)kept.count);
+            NSCalendar *c = [NSCalendar currentCalendar];
+            for (NSDictionary *a in kept)
+                printf("  %-7s %-38s %s\n",
+                       DueLabel(c, ParseISO(a[@"due"])).UTF8String,
+                       Clip(a[@"name"], 36).UTF8String,
+                       [a[@"course"] ?: @"" UTF8String]);
+            if (kept.count) printf("  url: %s\n", [kept[0][@"url"] UTF8String]);
+            return 0;
+        }
 
         printf("schedule: %s\n", gSched.loadError ? gSched.loadError.UTF8String : "loaded");
         for (int d = 0; d < 7; d++) {
@@ -1019,6 +1243,61 @@ int main(void) {
             if (!d) fails++;
             printf("  %-4s %s\n", d ? "ok" : "FAIL", stamps[i]);
         }
+
+        printf("\ncanvas ics parsing\n");
+        NSString *ics = [@[
+            @"BEGIN:VCALENDAR",
+            @"VERSION:2.0",
+            @"BEGIN:VEVENT",
+            @"UID:event-assignment-3409619@example.instructure.com",
+            @"DTSTART;VALUE=DATE-TIME:20260911T160000Z",
+            @"SUMMARY:Week 2 - Upload Poems to be",
+            @"  Workshopped [CRWT 1170 Intro to Poetry]",
+            [@"URL:https://example.instructure.com/calendar?include_contexts=course_260574"
+              stringByAppendingString:@"&month=09-11-2026#assignment_3409619"],
+            @"END:VEVENT",
+            @"BEGIN:VEVENT",
+            @"UID:event-calendar-event-999@example.instructure.com",
+            @"DTSTART;TZID=America/New_York:20260910T090000",
+            @"SUMMARY:Office Hours [CRWT 1170]",
+            @"END:VEVENT",
+            @"BEGIN:VEVENT",
+            @"UID:event-assignment-1@example.instructure.com",
+            @"DTSTART;VALUE=DATE:20260909",
+            @"SUMMARY:Reading response\\, part one [ENGW 1111]",
+            @"END:VEVENT",
+            @"END:VCALENDAR",
+        ] componentsJoinedByString:@"\r\n"];
+
+        NSArray *parsed = cb_ics_items(ics, @"https://example.instructure.com/");
+        struct { const char *label; BOOL ok; } icsChecks[] = {
+            { "calendar events are skipped",  parsed.count == 2 },
+            { "sorted by due date",           parsed.count == 2 &&
+                  [parsed[0][@"name"] hasPrefix:@"Reading response"] },
+            { "folded summary is rejoined",   parsed.count == 2 &&
+                  [parsed[1][@"name"] isEqualToString:
+                      @"Week 2 - Upload Poems to be Workshopped"] },
+            { "course is split off",          parsed.count == 2 &&
+                  [parsed[1][@"course"] isEqualToString:@"CRWT 1170 Intro to Poetry"] },
+            { "escapes are decoded",          parsed.count == 2 &&
+                  [parsed[0][@"name"] isEqualToString:@"Reading response, part one"] },
+            { "direct assignment url",        parsed.count == 2 &&
+                  [parsed[1][@"url"] isEqualToString:
+                      @"https://example.instructure.com/courses/260574/assignments/3409619"] },
+            { "utc due time converted",       parsed.count == 2 &&
+                  [ISOFormatter() dateFromString:parsed[1][@"due"]] != nil },
+        };
+        for (size_t i = 0; i < sizeof(icsChecks) / sizeof(icsChecks[0]); i++) {
+            if (!icsChecks[i].ok) fails++;
+            printf("  %-4s %s\n", icsChecks[i].ok ? "ok" : "FAIL", icsChecks[i].label);
+        }
+
+        NSDate *anchor = [ISOFormatter() dateFromString:@"2026-09-11T00:00:00Z"];
+        BOOL windowOK = cb_ics_window(parsed, anchor, 14, 21, 25).count == 2 &&
+                        cb_ics_window(parsed, anchor, 0, 21, 25).count == 1 &&
+                        cb_ics_window(parsed, anchor, 14, 21, 1).count == 1;
+        if (!windowOK) fails++;
+        printf("  %-4s window trims by age, horizon, and cap\n", windowOK ? "ok" : "FAIL");
 
         printf("\nassignment cache\n");
         NSArray *up = LoadUpcoming();

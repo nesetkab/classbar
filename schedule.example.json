@@ -1,6 +1,6 @@
 {
   "canvasHome": "https://example.instructure.com/",
-  "refreshAgent": "com.example.canvas-sync",
+  "canvasFeed": "https://example.instructure.com/feeds/calendars/user_REPLACE_WITH_YOUR_TOKEN.ics",
   "term": {
     "start": 20260909,
     "end": 20261220,
