@@ -4,5 +4,6 @@ cbtest_dbg
 *.dSYM
 *.o
 schedule.json
+*.ics
 tools/*.tmp
 CLAUDE.md

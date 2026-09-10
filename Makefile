@@ -1,6 +1,6 @@
 CC ?= clang
 CFLAGS ?= -fobjc-arc -Wall -Wextra -O2
-LDFLAGS ?= -framework Cocoa
+LDFLAGS ?= -framework Cocoa -framework UniformTypeIdentifiers
 VERSION ?= 1.0
 APP_NAME ?= ClassBar
 BUNDLE_ID ?= local.classbar

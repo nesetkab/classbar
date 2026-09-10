@@ -19,6 +19,23 @@ static NSString *RefreshSVG(NSString *hex) {
          "stroke-linejoin=\"round\"/></svg>", hex];
 }
 
+static NSString *GearSVG(NSString *hex) {
+    return [NSString stringWithFormat:
+        @"<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" "
+         "xmlns=\"http://www.w3.org/2000/svg\">"
+         "<circle cx=\"12\" cy=\"12\" r=\"3\" stroke=\"%@\" stroke-width=\"2\"/>"
+         "<path d=\"M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 11-2.83 2.83l-.06-.06"
+         "a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 11-4 0v-.09"
+         "A1.65 1.65 0 008.6 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 11-2.83-2.83l.06-.06"
+         "a1.65 1.65 0 00.33-1.82 1.65 1.65 0 00-1.51-1H3a2 2 0 110-4h.09"
+         "A1.65 1.65 0 004.6 8.6a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 112.83-2.83l.06.06"
+         "a1.65 1.65 0 001.82.33H9a1.65 1.65 0 001-1.51V3a2 2 0 114 0v.09"
+         "a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 112.83 2.83l-.06.06"
+         "a1.65 1.65 0 00-.33 1.82V9a1.65 1.65 0 001.51 1H21a2 2 0 110 4h-.09"
+         "a1.65 1.65 0 00-1.51 1z\" stroke=\"%@\" stroke-width=\"2\" "
+         "stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>", hex, hex];
+}
+
 static NSImage *SVGImage(NSData *data, NSSize size) {
     NSImage *img = [[NSImage alloc] initWithData:data];
     if (!img) return nil;
@@ -35,5 +52,10 @@ static NSImage *CatIconImage(void) {
 
 static NSImage *RefreshIconImage(BOOL dark) {
     NSString *svg = RefreshSVG(dark ? @"#FFFFFF" : @"#000000");
+    return SVGImage([svg dataUsingEncoding:NSUTF8StringEncoding], NSMakeSize(14, 14));
+}
+
+static NSImage *GearIconImage(BOOL dark) {
+    NSString *svg = GearSVG(dark ? @"#FFFFFF" : @"#000000");
     return SVGImage([svg dataUsingEncoding:NSUTF8StringEncoding], NSMakeSize(14, 14));
 }

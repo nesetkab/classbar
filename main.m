@@ -1,4 +1,5 @@
 #import <Cocoa/Cocoa.h>
+#import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import <objc/message.h>
 #import "icons.h"
 
@@ -667,6 +668,172 @@ static NSArray *cb_ics_window(NSArray *items, NSDate *now, int backDays,
     return out;
 }
 
+static NSArray *DayTokens(void) {
+    return @[@"Mon", @"Tue", @"Wed", @"Thu", @"Fri", @"Sat", @"Sun"];
+}
+
+static NSString *DaysToText(NSArray *days) {
+    NSArray *tokens = DayTokens();
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSNumber *d in days) {
+        NSInteger i = d.integerValue;
+        if (i >= 0 && i < 7) [out addObject:tokens[i]];
+    }
+    return [out componentsJoinedByString:@" "];
+}
+
+static NSArray *TextToDays(NSString *text) {
+    NSMutableString *letters = [NSMutableString string];
+    for (NSUInteger i = 0; i < text.length; i++) {
+        unichar c = [text characterAtIndex:i];
+        if (c >= 'a' && c <= 'z') c = (unichar)(c - 'a' + 'A');
+        if (c >= 'A' && c <= 'Z') [letters appendFormat:@"%C", c];
+    }
+    NSArray *pairs = @[@"MO", @"TU", @"WE", @"TH", @"FR", @"SA", @"SU"];
+    NSString *singles = @"MTWRFSU";
+    NSMutableIndexSet *found = [NSMutableIndexSet indexSet];
+    NSUInteger i = 0;
+    while (i < letters.length) {
+        NSUInteger pair = NSNotFound;
+        if (i + 1 < letters.length)
+            pair = [pairs indexOfObject:[letters substringWithRange:NSMakeRange(i, 2)]];
+        if (pair != NSNotFound) {
+            [found addIndex:pair];
+            i += 2;
+            continue;
+        }
+        NSRange one = [singles rangeOfString:[letters substringWithRange:NSMakeRange(i, 1)]];
+        if (one.location != NSNotFound) [found addIndex:one.location];
+        i += 1;
+    }
+    NSMutableArray *out = [NSMutableArray array];
+    [found enumerateIndexesUsingBlock:^(NSUInteger idx, BOOL *stop __unused) {
+        [out addObject:@(idx)];
+    }];
+    return out;
+}
+
+static void SplitCourseTitle(NSString *summary, NSString **name, NSString **code) {
+    *name = summary;
+    *code = @"";
+    NSRegularExpression *re = [NSRegularExpression
+        regularExpressionWithPattern:@"\\b([A-Z]{2,5})[\\s\\-_]?([0-9]{3,4}[A-Z]?)\\b"
+                             options:0 error:NULL];
+    NSTextCheckingResult *m = [re firstMatchInString:summary options:0
+                                               range:NSMakeRange(0, summary.length)];
+    if (!m) return;
+    *code = [NSString stringWithFormat:@"%@ %@",
+             [summary substringWithRange:[m rangeAtIndex:1]],
+             [summary substringWithRange:[m rangeAtIndex:2]]];
+    NSString *stripped = [summary stringByReplacingCharactersInRange:m.range withString:@" "];
+    while ([stripped rangeOfString:@"  "].location != NSNotFound)
+        stripped = [stripped stringByReplacingOccurrencesOfString:@"  " withString:@" "];
+    stripped = [stripped stringByTrimmingCharactersInSet:
+        [NSCharacterSet characterSetWithCharactersInString:@" -–—,:;()[]\t\n"]];
+    if (stripped.length) *name = stripped;
+}
+
+static NSString *ClockText(NSDate *date) {
+    NSDateFormatter *f = [[NSDateFormatter alloc] init];
+    f.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
+    f.dateFormat = @"HH:mm";
+    return [f stringFromDate:date];
+}
+
+static int YMD(NSDate *date) {
+    NSDateComponents *c = [[NSCalendar currentCalendar]
+        components:NSCalendarUnitYear | NSCalendarUnitMonth | NSCalendarUnitDay
+          fromDate:date];
+    return (int)c.year * 10000 + (int)c.month * 100 + (int)c.day;
+}
+
+static int WeekdayIndex(NSDate *date) {
+    NSInteger w = [[NSCalendar currentCalendar] component:NSCalendarUnitWeekday
+                                                 fromDate:date];
+    NSInteger i = w - 2;
+    return (int)(i < 0 ? 6 : i);
+}
+
+static NSDictionary *cb_ics_classes(NSString *text) {
+    NSMutableArray *order = [NSMutableArray array];
+    NSMutableDictionary *groups = [NSMutableDictionary dictionary];
+
+    for (NSDictionary *e in IcsEvents(text)) {
+        NSDate *start = e[@"DTSTART"];
+        NSDate *end = e[@"DTEND"];
+        NSString *summary = e[@"SUMMARY"];
+        if (!start || !end || !summary.length) continue;
+
+        NSString *rrule = e[@"RRULE"] ?: @"";
+        NSMutableArray *days = [NSMutableArray array];
+        NSDate *last = start;
+        if (rrule.length) {
+            if ([rrule containsString:@"FREQ="] && ![rrule containsString:@"FREQ=WEEKLY"])
+                continue;
+            NSString *byday = FirstGroup(rrule, @"BYDAY=([A-Z,]+)");
+            for (NSString *token in [byday componentsSeparatedByString:@","]) {
+                if (token.length < 2) continue;
+                NSArray *days2 = TextToDays([token substringFromIndex:token.length - 2]);
+                for (NSNumber *d in days2) if (![days containsObject:d]) [days addObject:d];
+            }
+            NSString *until = FirstGroup(rrule, @"UNTIL=([0-9]{8})");
+            NSDate *untilDate = until ? IcsDate(nil, until) : nil;
+            if (untilDate) last = untilDate;
+        }
+        if (!days.count) [days addObject:@(WeekdayIndex(start))];
+
+        NSString *name = nil, *code = nil;
+        SplitCourseTitle(summary, &name, &code);
+        NSString *room = e[@"LOCATION"] ?: @"";
+        NSString *startText = ClockText(start);
+        NSString *endText = ClockText(end);
+        NSString *key = [NSString stringWithFormat:@"%@|%@|%@|%@",
+                         code.length ? code : name, startText, endText, room];
+
+        NSMutableDictionary *g = groups[key];
+        if (!g) {
+            g = [@{ @"name": name, @"code": code, @"room": room,
+                    @"days": [NSMutableArray arrayWithArray:days],
+                    @"start": startText, @"end": endText,
+                    @"first": start, @"last": last } mutableCopy];
+            groups[key] = g;
+            [order addObject:key];
+            continue;
+        }
+        NSMutableArray *have = g[@"days"];
+        for (NSNumber *d in days) if (![have containsObject:d]) [have addObject:d];
+        if ([start compare:g[@"first"]] == NSOrderedAscending) g[@"first"] = start;
+        if ([last compare:g[@"last"]] == NSOrderedDescending) g[@"last"] = last;
+    }
+
+    if (!order.count) return nil;
+
+    NSMutableArray *classes = [NSMutableArray array];
+    NSDate *first = nil, *last = nil;
+    for (NSString *key in order) {
+        NSMutableDictionary *g = groups[key];
+        if (!first || [g[@"first"] compare:first] == NSOrderedAscending) first = g[@"first"];
+        if (!last || [g[@"last"] compare:last] == NSOrderedDescending) last = g[@"last"];
+        NSMutableArray *days = g[@"days"];
+        [days sortUsingSelector:@selector(compare:)];
+        [classes addObject:[@{ @"name": g[@"name"], @"code": g[@"code"],
+                               @"room": g[@"room"], @"days": days,
+                               @"start": g[@"start"], @"end": g[@"end"] } mutableCopy]];
+    }
+    [classes sortUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+        NSNumber *da = [a[@"days"] firstObject], *db = [b[@"days"] firstObject];
+        NSComparisonResult r = [da compare:db];
+        return r == NSOrderedSame ? [a[@"start"] compare:b[@"start"]] : r;
+    }];
+
+    NSDateFormatter *label = [[NSDateFormatter alloc] init];
+    label.dateFormat = @"MMM d";
+    return @{ @"classes": classes,
+              @"term": @{ @"start": @(YMD(first)), @"end": @(YMD(last)),
+                          @"beforeLabel": [NSString stringWithFormat:@"Classes begin %@",
+                                           [label stringFromDate:first]] } };
+}
+
 static BOOL WriteCache(NSArray *items) {
     NSDictionary *root = @{ @"generated": [ISOFormatter() stringFromDate:[NSDate date]],
                             @"items": items ?: @[] };
@@ -751,15 +918,21 @@ static NSString *Clip(NSString *s, NSUInteger n) {
 @property (weak) id target;
 @property (assign) SEL quitAction;
 @property (assign) SEL refreshAction;
+@property (assign) SEL settingsAction;
 @property (assign) BOOL overRefresh;
+@property (assign) BOOL overGear;
 @property (assign) BOOL hovered;
 @property (copy)   NSString *status;
 @end
 
 @implementation FooterView
 
-- (NSRect)refreshRect {
+- (NSRect)gearRect {
     return NSMakeRect(NSMaxX(self.bounds) - 34, NSMidY(self.bounds) - 9, 20, 18);
+}
+
+- (NSRect)refreshRect {
+    return NSOffsetRect([self gearRect], -28, 0);
 }
 
 - (void)updateTrackingAreas {
@@ -775,8 +948,10 @@ static NSString *Clip(NSString *s, NSUInteger n) {
 
 - (void)syncAt:(NSPoint)pt {
     BOOL refresh = NSPointInRect(pt, NSInsetRect([self refreshRect], -4, -4));
-    if (refresh != self.overRefresh || !self.hovered) {
+    BOOL gear = NSPointInRect(pt, NSInsetRect([self gearRect], -4, -4));
+    if (refresh != self.overRefresh || gear != self.overGear || !self.hovered) {
         self.overRefresh = refresh;
+        self.overGear = gear;
         self.hovered = YES;
         self.needsDisplay = YES;
     }
@@ -793,6 +968,7 @@ static NSString *Clip(NSString *s, NSUInteger n) {
 - (void)mouseExited:(NSEvent *)e {
     self.hovered = NO;
     self.overRefresh = NO;
+    self.overGear = NO;
     self.needsDisplay = YES;
 }
 
@@ -801,6 +977,9 @@ static NSString *Clip(NSString *s, NSUInteger n) {
     SEL sel;
     if (NSPointInRect(pt, NSInsetRect([self refreshRect], -4, -4))) {
         sel = self.refreshAction;
+    } else if (NSPointInRect(pt, NSInsetRect([self gearRect], -4, -4))) {
+        [self.enclosingMenuItem.menu cancelTracking];
+        sel = self.settingsAction;
     } else {
         [self.enclosingMenuItem.menu cancelTracking];
         sel = self.quitAction;
@@ -823,7 +1002,7 @@ static NSString *Clip(NSString *s, NSUInteger n) {
 }
 
 - (void)drawRect:(NSRect)dirty {
-    BOOL quitLit = self.hovered && !self.overRefresh;
+    BOOL quitLit = self.hovered && !self.overRefresh && !self.overGear;
 
     if (quitLit) {
         NSRect hl = NSMakeRect(5, 2,
@@ -860,6 +1039,401 @@ static NSString *Clip(NSString *s, NSUInteger n) {
 
     [self drawIcon:RefreshIconImage(dark || self.overRefresh)
             inRect:[self refreshRect] lit:self.overRefresh];
+    [self drawIcon:GearIconImage(dark || self.overGear)
+            inRect:[self gearRect] lit:self.overGear];
+}
+
+@end
+
+static NSDate *DateFromYMD(int ymd) {
+    NSDateComponents *c = [[NSDateComponents alloc] init];
+    c.year = ymd / 10000;
+    c.month = (ymd / 100) % 100;
+    c.day = ymd % 100;
+    if (c.year < 1970 || c.month < 1 || c.month > 12) return [NSDate date];
+    return [[NSCalendar currentCalendar] dateFromComponents:c] ?: [NSDate date];
+}
+
+@interface SettingsWindow : NSObject <NSTableViewDataSource, NSTableViewDelegate>
+@property (strong) NSWindow *window;
+@property (strong) NSMutableArray *classes;
+@property (strong) NSTextField *feedField;
+@property (strong) NSTextField *homeField;
+@property (strong) NSDatePicker *startPicker;
+@property (strong) NSDatePicker *endPicker;
+@property (strong) NSTextField *beforeField;
+@property (strong) NSTableView *table;
+@property (strong) NSTextField *statusLabel;
+@property (weak)   id target;
+@property (assign) SEL savedAction;
+@property (assign) SEL refreshAction;
+@end
+
+@implementation SettingsWindow
+
+- (instancetype)init {
+    self = [super init];
+    if (self) {
+        self.classes = [NSMutableArray array];
+        [self buildWindow];
+    }
+    return self;
+}
+
+- (NSTextField *)labelWithText:(NSString *)text {
+    NSTextField *f = [NSTextField labelWithString:text];
+    f.alignment = NSTextAlignmentRight;
+    return f;
+}
+
+- (NSButton *)buttonWithTitle:(NSString *)title action:(SEL)action {
+    NSButton *b = [NSButton buttonWithTitle:title target:self action:action];
+    b.bezelStyle = NSBezelStyleRounded;
+    return b;
+}
+
+- (NSTableColumn *)columnWithId:(NSString *)ident title:(NSString *)title
+                          width:(CGFloat)width {
+    NSTableColumn *c = [[NSTableColumn alloc] initWithIdentifier:ident];
+    c.title = title;
+    c.width = width;
+    c.minWidth = 40;
+    return c;
+}
+
+- (void)buildWindow {
+    self.window = [[NSWindow alloc]
+        initWithContentRect:NSMakeRect(0, 0, 1000, 620)
+                  styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
+                            NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable
+                    backing:NSBackingStoreBuffered
+                      defer:NO];
+    self.window.title = @"ClassBar Settings";
+    self.window.releasedWhenClosed = NO;
+    [self.window center];
+
+    self.feedField = [NSTextField textFieldWithString:@""];
+    self.feedField.placeholderString =
+        @"https://school.instructure.com/feeds/calendars/user_….ics";
+    self.homeField = [NSTextField textFieldWithString:@""];
+    self.homeField.placeholderString = @"https://school.instructure.com/";
+    self.beforeField = [NSTextField textFieldWithString:@""];
+    self.beforeField.placeholderString = @"Classes begin Sep 9";
+
+    self.startPicker = [[NSDatePicker alloc] init];
+    self.startPicker.datePickerElements = NSDatePickerElementFlagYearMonthDay;
+    self.startPicker.datePickerStyle = NSDatePickerStyleTextFieldAndStepper;
+    self.endPicker = [[NSDatePicker alloc] init];
+    self.endPicker.datePickerElements = NSDatePickerElementFlagYearMonthDay;
+    self.endPicker.datePickerStyle = NSDatePickerStyleTextFieldAndStepper;
+
+    NSGridView *grid = [NSGridView gridViewWithViews:@[
+        @[[self labelWithText:@"Canvas feed URL"], self.feedField],
+        @[[self labelWithText:@"Canvas home"], self.homeField],
+        @[[self labelWithText:@"Term starts"], self.startPicker],
+        @[[self labelWithText:@"Term ends"], self.endPicker],
+        @[[self labelWithText:@"Before term"], self.beforeField],
+    ]];
+    grid.rowSpacing = 8;
+    grid.columnSpacing = 10;
+    [grid columnAtIndex:0].width = 130;
+    [grid columnAtIndex:0].xPlacement = NSGridCellPlacementTrailing;
+    [grid columnAtIndex:1].xPlacement = NSGridCellPlacementFill;
+    for (NSInteger row = 2; row <= 3; row++)
+        [grid cellAtColumnIndex:1 rowIndex:row].xPlacement = NSGridCellPlacementLeading;
+
+    self.table = [[NSTableView alloc] init];
+    self.table.dataSource = self;
+    self.table.delegate = self;
+    self.table.allowsMultipleSelection = YES;
+    self.table.usesAlternatingRowBackgroundColors = YES;
+    self.table.columnAutoresizingStyle = NSTableViewNoColumnAutoresizing;
+    for (NSArray *spec in @[ @[@"name", @"Name", @160], @[@"code", @"Code", @80],
+                             @[@"room", @"Room", @140], @[@"days", @"Days", @120],
+                             @[@"start", @"Start", @60], @[@"end", @"End", @60],
+                             @[@"canvas", @"Canvas link", @170],
+                             @[@"zoom", @"Zoom link", @170] ])
+        [self.table addTableColumn:[self columnWithId:spec[0] title:spec[1]
+                                                width:[spec[2] doubleValue]]];
+
+    NSScrollView *scroll = [[NSScrollView alloc] init];
+    scroll.documentView = self.table;
+    scroll.hasVerticalScroller = YES;
+    scroll.hasHorizontalScroller = YES;
+    scroll.borderType = NSBezelBorder;
+
+    self.statusLabel = [NSTextField labelWithString:@""];
+    self.statusLabel.textColor = [NSColor secondaryLabelColor];
+    self.statusLabel.font = [NSFont systemFontOfSize:11];
+
+    NSView *spacer = [[NSView alloc] init];
+    [spacer setContentHuggingPriority:NSLayoutPriorityDefaultLow
+                       forOrientation:NSLayoutConstraintOrientationHorizontal];
+
+    NSButton *save = [self buttonWithTitle:@"Save" action:@selector(save)];
+    save.keyEquivalent = @"\r";
+
+    NSStackView *buttons = [NSStackView stackViewWithViews:@[
+        [self buttonWithTitle:@"Add Class" action:@selector(addClass)],
+        [self buttonWithTitle:@"Remove" action:@selector(removeSelected)],
+        [self buttonWithTitle:@"Import from .ics…" action:@selector(importICS)],
+        spacer,
+        self.statusLabel,
+        [self buttonWithTitle:@"Refresh Assignments" action:@selector(refresh)],
+        save,
+    ]];
+    buttons.spacing = 8;
+
+    NSTextField *heading = [NSTextField labelWithString:@"Classes"];
+    heading.font = [NSFont systemFontOfSize:13 weight:NSFontWeightSemibold];
+
+    NSStackView *root = [NSStackView stackViewWithViews:@[grid, heading, scroll, buttons]];
+    root.orientation = NSUserInterfaceLayoutOrientationVertical;
+    root.alignment = NSLayoutAttributeLeading;
+    root.spacing = 12;
+    root.edgeInsets = NSEdgeInsetsMake(18, 18, 18, 18);
+    root.translatesAutoresizingMaskIntoConstraints = NO;
+
+    NSView *content = self.window.contentView;
+    [content addSubview:root];
+    [NSLayoutConstraint activateConstraints:@[
+        [root.topAnchor constraintEqualToAnchor:content.topAnchor],
+        [root.bottomAnchor constraintEqualToAnchor:content.bottomAnchor],
+        [root.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
+        [root.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
+        [grid.widthAnchor constraintEqualToAnchor:root.widthAnchor constant:-36],
+        [scroll.widthAnchor constraintEqualToAnchor:root.widthAnchor constant:-36],
+        [buttons.widthAnchor constraintEqualToAnchor:root.widthAnchor constant:-36],
+        [scroll.heightAnchor constraintGreaterThanOrEqualToConstant:300],
+    ]];
+}
+
+- (void)show {
+    [self load];
+    [NSApp activateIgnoringOtherApps:YES];
+    [self.window makeKeyAndOrderFront:nil];
+}
+
+- (void)setStatus:(NSString *)text {
+    self.statusLabel.stringValue = text ?: @"";
+}
+
+- (void)load {
+    NSData *d = [NSData dataWithContentsOfFile:SchedulePath()];
+    id root = d ? [NSJSONSerialization JSONObjectWithData:d options:0 error:NULL] : nil;
+    if (![root isKindOfClass:[NSDictionary class]]) root = @{};
+
+    self.feedField.stringValue = [root[@"canvasFeed"] isKindOfClass:[NSString class]]
+        ? root[@"canvasFeed"] : @"";
+    self.homeField.stringValue = [root[@"canvasHome"] isKindOfClass:[NSString class]]
+        ? root[@"canvasHome"] : @"";
+
+    NSDictionary *term = [root[@"term"] isKindOfClass:[NSDictionary class]]
+        ? root[@"term"] : @{};
+    self.startPicker.dateValue = DateFromYMD([term[@"start"] intValue]);
+    self.endPicker.dateValue = DateFromYMD([term[@"end"] intValue]);
+    self.beforeField.stringValue = [term[@"beforeLabel"] isKindOfClass:[NSString class]]
+        ? term[@"beforeLabel"] : @"";
+
+    [self.classes removeAllObjects];
+    for (NSDictionary *c in root[@"classes"]) {
+        if (![c isKindOfClass:[NSDictionary class]]) continue;
+        NSMutableArray *days = [NSMutableArray array];
+        for (NSNumber *n in c[@"days"])
+            if ([n isKindOfClass:[NSNumber class]]) [days addObject:n];
+        [self.classes addObject:[@{
+            @"name": c[@"name"] ?: @"", @"code": c[@"code"] ?: @"",
+            @"room": c[@"room"] ?: @"", @"days": days,
+            @"start": c[@"start"] ?: @"", @"end": c[@"end"] ?: @"",
+            @"canvas": c[@"canvas"] ?: @"", @"zoom": c[@"zoom"] ?: @"",
+        } mutableCopy]];
+    }
+    [self.table reloadData];
+    [self setStatus:@""];
+}
+
+- (NSInteger)numberOfRowsInTableView:(NSTableView *)tv __unused {
+    return (NSInteger)self.classes.count;
+}
+
+- (NSView *)tableView:(NSTableView *)tv viewForTableColumn:(NSTableColumn *)column
+                  row:(NSInteger)row {
+    NSString *key = column.identifier;
+    NSTextField *field = [tv makeViewWithIdentifier:key owner:self];
+    if (!field) {
+        field = [NSTextField textFieldWithString:@""];
+        field.identifier = key;
+        field.bordered = NO;
+        field.drawsBackground = NO;
+        field.font = [NSFont systemFontOfSize:12];
+        field.target = self;
+        field.action = @selector(cellEdited:);
+    }
+    NSDictionary *c = self.classes[(NSUInteger)row];
+    field.stringValue = [key isEqualToString:@"days"] ? DaysToText(c[@"days"])
+                                                      : (c[key] ?: @"");
+    return field;
+}
+
+- (void)cellEdited:(NSTextField *)sender {
+    NSInteger row = [self.table rowForView:sender];
+    if (row < 0 || row >= (NSInteger)self.classes.count) return;
+    NSMutableDictionary *c = self.classes[(NSUInteger)row];
+    NSString *key = sender.identifier;
+    if ([key isEqualToString:@"days"]) {
+        NSArray *days = TextToDays(sender.stringValue);
+        c[@"days"] = [days mutableCopy];
+        sender.stringValue = DaysToText(days);
+    } else {
+        c[key] = sender.stringValue;
+    }
+}
+
+- (void)addClass {
+    [self.classes addObject:[@{ @"name": @"New Class", @"code": @"", @"room": @"",
+                                @"days": [NSMutableArray array],
+                                @"start": @"09:00", @"end": @"10:00",
+                                @"canvas": @"", @"zoom": @"" } mutableCopy]];
+    [self.table reloadData];
+    NSInteger row = (NSInteger)self.classes.count - 1;
+    [self.table selectRowIndexes:[NSIndexSet indexSetWithIndex:(NSUInteger)row]
+            byExtendingSelection:NO];
+    [self.table scrollRowToVisible:row];
+}
+
+- (void)removeSelected {
+    NSIndexSet *rows = self.table.selectedRowIndexes;
+    if (!rows.count) return;
+    [self.classes removeObjectsAtIndexes:rows];
+    [self.table reloadData];
+}
+
+- (void)importICS {
+    NSOpenPanel *panel = [NSOpenPanel openPanel];
+    UTType *ics = [UTType typeWithFilenameExtension:@"ics"];
+    if (ics) panel.allowedContentTypes = @[ics];
+    panel.allowsMultipleSelection = NO;
+    panel.message = @"Choose a calendar export that contains your class meetings.";
+    if ([panel runModal] != NSModalResponseOK || !panel.URL) return;
+
+    NSString *text = [NSString stringWithContentsOfURL:panel.URL
+                                              encoding:NSUTF8StringEncoding error:NULL];
+    NSDictionary *result = text ? cb_ics_classes(text) : nil;
+    if (!result) {
+        [self alert:@"Nothing to import"
+               info:@"No weekly class meetings were found in that calendar."];
+        return;
+    }
+    [self applyImport:result];
+}
+
+- (void)applyImport:(NSDictionary *)result {
+    NSMutableDictionary *previous = [NSMutableDictionary dictionary];
+    for (NSMutableDictionary *c in self.classes) {
+        NSString *key = [c[@"code"] length] ? c[@"code"] : c[@"name"];
+        NSMutableArray *list = previous[key];
+        if (!list) { list = [NSMutableArray array]; previous[key] = list; }
+        [list addObject:c];
+    }
+
+    NSMutableArray *merged = [NSMutableArray array];
+    for (NSDictionary *c in result[@"classes"]) {
+        NSString *key = [c[@"code"] length] ? c[@"code"] : c[@"name"];
+        NSMutableArray *list = previous[key];
+        NSMutableDictionary *old = list.count ? list[0] : nil;
+        if (old) [list removeObjectAtIndex:0];
+        NSMutableDictionary *entry = [c mutableCopy];
+        entry[@"canvas"] = old[@"canvas"] ?: @"";
+        entry[@"zoom"] = old[@"zoom"] ?: @"";
+        if ([old[@"name"] length]) entry[@"name"] = old[@"name"];
+        [merged addObject:entry];
+    }
+
+    self.classes = merged;
+    NSDictionary *term = result[@"term"];
+    self.startPicker.dateValue = DateFromYMD([term[@"start"] intValue]);
+    self.endPicker.dateValue = DateFromYMD([term[@"end"] intValue]);
+    if (!self.beforeField.stringValue.length)
+        self.beforeField.stringValue = term[@"beforeLabel"] ?: @"";
+    [self.table reloadData];
+    [self setStatus:[NSString stringWithFormat:@"Imported %lu classes. Not saved yet.",
+                     (unsigned long)merged.count]];
+}
+
+- (void)alert:(NSString *)title info:(NSString *)info {
+    NSAlert *a = [[NSAlert alloc] init];
+    a.messageText = title;
+    a.informativeText = info;
+    [a beginSheetModalForWindow:self.window completionHandler:nil];
+}
+
+- (void)refresh {
+    if (self.target && self.refreshAction)
+        ((void (*)(id, SEL))objc_msgSend)(self.target, self.refreshAction);
+}
+
+- (NSArray *)problems {
+    NSMutableArray *problems = [NSMutableArray array];
+    for (NSUInteger i = 0; i < self.classes.count; i++) {
+        NSDictionary *c = self.classes[i];
+        NSString *label = [c[@"name"] length] ? c[@"name"]
+                        : [NSString stringWithFormat:@"Row %lu", (unsigned long)i + 1];
+        if (![c[@"name"] length])
+            [problems addObject:[NSString stringWithFormat:@"%@ has no name", label]];
+        if (![c[@"days"] count])
+            [problems addObject:[NSString stringWithFormat:@"%@ has no days", label]];
+        if (ParseClock(c[@"start"]) < 0 || ParseClock(c[@"end"]) < 0)
+            [problems addObject:[NSString stringWithFormat:
+                @"%@ needs times as HH:MM, 24 hour", label]];
+    }
+    return problems;
+}
+
+- (NSDictionary *)buildRoot {
+    NSMutableArray *classes = [NSMutableArray array];
+    for (NSDictionary *c in self.classes) {
+        NSMutableDictionary *entry = [@{ @"name": c[@"name"], @"code": c[@"code"] ?: @"",
+                                         @"room": c[@"room"] ?: @"", @"days": c[@"days"],
+                                         @"start": c[@"start"], @"end": c[@"end"] } mutableCopy];
+        if ([c[@"canvas"] length]) entry[@"canvas"] = c[@"canvas"];
+        if ([c[@"zoom"] length]) entry[@"zoom"] = c[@"zoom"];
+        [classes addObject:entry];
+    }
+
+    return @{
+        @"canvasHome": self.homeField.stringValue,
+        @"canvasFeed": self.feedField.stringValue,
+        @"term": @{ @"start": @(YMD(self.startPicker.dateValue)),
+                    @"end": @(YMD(self.endPicker.dateValue)),
+                    @"beforeLabel": self.beforeField.stringValue },
+        @"classes": classes,
+    };
+}
+
+- (void)save {
+    [self.window makeFirstResponder:nil];
+
+    NSArray *problems = [self problems];
+    if (problems.count) {
+        [self alert:@"Fix these first" info:[problems componentsJoinedByString:@"\n"]];
+        return;
+    }
+
+    NSDictionary *root = [self buildRoot];
+    NSData *json = [NSJSONSerialization dataWithJSONObject:root
+                                                   options:NSJSONWritingPrettyPrinted
+                                                     error:NULL];
+    [[NSFileManager defaultManager]
+             createDirectoryAtPath:[SchedulePath() stringByDeletingLastPathComponent]
+       withIntermediateDirectories:YES attributes:nil error:NULL];
+    if (!json || ![json writeToFile:SchedulePath() atomically:YES]) {
+        [self alert:@"Could not save" info:SchedulePath()];
+        return;
+    }
+
+    [self setStatus:@"Saved"];
+    if (self.target && self.savedAction)
+        ((void (*)(id, SEL))objc_msgSend)(self.target, self.savedAction);
 }
 
 @end
@@ -871,6 +1445,7 @@ static NSString *Clip(NSString *s, NSUInteger n) {
 @property (weak)   FooterView *footer;
 @property (weak)   NSMenu *liveMenu;
 @property (assign) BOOL fetching;
+@property (strong) SettingsWindow *settings;
 @property (copy)   NSString *link;
 @end
 
@@ -995,6 +1570,7 @@ static NSString *Clip(NSString *s, NSUInteger n) {
     fv.target = self;
     fv.quitAction = @selector(quitApp);
     fv.refreshAction = @selector(refreshNow);
+    fv.settingsAction = @selector(openSettings);
     fv.status = self.fetching ? @"Syncing…" : CacheAgeLabel();
     self.footer = fv;
     self.liveMenu = menu;
@@ -1046,6 +1622,24 @@ static NSString *Clip(NSString *s, NSUInteger n) {
 - (void)setFooterStatus:(NSString *)text {
     self.footer.status = text;
     self.footer.needsDisplay = YES;
+    [self.settings setStatus:text];
+}
+
+- (void)openSettings {
+    if (!self.settings) {
+        self.settings = [[SettingsWindow alloc] init];
+        self.settings.target = self;
+        self.settings.savedAction = @selector(settingsSaved);
+        self.settings.refreshAction = @selector(refreshNow);
+    }
+    [self.settings show];
+}
+
+- (void)settingsSaved {
+    self.scheduleStamp = 0;
+    [self reloadScheduleIfChanged];
+    self.link = self.schedule.canvasHome;
+    [self refreshNow];
 }
 
 - (void)refreshNow {
@@ -1158,6 +1752,31 @@ int main(int argc, char **argv) {
     @autoreleasepool {
         [NSApplication sharedApplication];
         gSched = [Schedule loadFromDisk];
+
+        if (argc > 2 && strcmp(argv[1], "--shot") == 0) {
+            SettingsWindow *sw = [[SettingsWindow alloc] init];
+            [sw load];
+            [sw.window setFrameOrigin:NSMakePoint(-5000, -5000)];
+            [sw.window orderFrontRegardless];
+            NSView *v = sw.window.contentView;
+            [v layoutSubtreeIfNeeded];
+            [[NSRunLoop currentRunLoop] runUntilDate:
+                [NSDate dateWithTimeIntervalSinceNow:1.0]];
+            [v displayIfNeeded];
+            NSBitmapImageRep *rep = [v bitmapImageRepForCachingDisplayInRect:v.bounds];
+            [NSGraphicsContext saveGraphicsState];
+            NSGraphicsContext.currentContext =
+                [NSGraphicsContext graphicsContextWithBitmapImageRep:rep];
+            [v.layer renderInContext:NSGraphicsContext.currentContext.CGContext];
+            [NSGraphicsContext restoreGraphicsState];
+            NSData *png = [rep representationUsingType:NSBitmapImageFileTypePNG
+                                            properties:@{}];
+            BOOL ok = [png writeToFile:@(argv[2]) atomically:YES];
+            printf("%s %s (%.0fx%.0f, %lu classes)\n", ok ? "wrote" : "failed", argv[2],
+                   NSWidth(v.bounds), NSHeight(v.bounds),
+                   (unsigned long)sw.classes.count);
+            return ok ? 0 : 1;
+        }
 
         if (argc > 1) {
             NSString *text = [NSString stringWithContentsOfFile:@(argv[1])
@@ -1298,6 +1917,109 @@ int main(int argc, char **argv) {
                         cb_ics_window(parsed, anchor, 14, 21, 1).count == 1;
         if (!windowOK) fails++;
         printf("  %-4s window trims by age, horizon, and cap\n", windowOK ? "ok" : "FAIL");
+
+        printf("\nday tokens\n");
+        struct { const char *in; const char *want; } dayCases[] = {
+            { "MWF",        "Mon Wed Fri" },
+            { "TuTh",       "Tue Thu" },
+            { "M W F",      "Mon Wed Fri" },
+            { "mon, wed",   "Mon Wed" },
+            { "MTWRF",      "Mon Tue Wed Thu Fri" },
+            { "SaSu",       "Sat Sun" },
+            { "",           "" },
+            { "xyz",        "" },
+        };
+        for (size_t i = 0; i < sizeof(dayCases) / sizeof(dayCases[0]); i++) {
+            NSString *got = DaysToText(TextToDays(@(dayCases[i].in)));
+            BOOL ok = [got isEqualToString:@(dayCases[i].want)];
+            if (!ok) fails++;
+            printf("  %-4s %-10s -> %s\n", ok ? "ok" : "FAIL",
+                   dayCases[i].in, got.UTF8String);
+        }
+
+        printf("\nclass import from ics\n");
+        NSString *sched = [@[
+            @"BEGIN:VCALENDAR",
+            @"BEGIN:VEVENT",
+            @"SUMMARY:PHYS 1151 - Physics for Engineering 1",
+            @"LOCATION:Science Hall 210",
+            @"DTSTART;TZID=America/New_York:20260909T091500",
+            @"DTEND;TZID=America/New_York:20260909T102000",
+            @"RRULE:FREQ=WEEKLY;BYDAY=MO,WE,FR;UNTIL=20261220T000000Z",
+            @"END:VEVENT",
+            @"BEGIN:VEVENT",
+            @"SUMMARY:Writing Seminar",
+            @"LOCATION:Online",
+            @"DTSTART:20260914T185000Z",
+            @"DTEND:20260914T203000Z",
+            @"END:VEVENT",
+            @"BEGIN:VEVENT",
+            @"SUMMARY:Writing Seminar",
+            @"LOCATION:Online",
+            @"DTSTART:20260916T185000Z",
+            @"DTEND:20260916T203000Z",
+            @"END:VEVENT",
+            @"END:VCALENDAR",
+        ] componentsJoinedByString:@"\r\n"];
+
+        NSDictionary *imported = cb_ics_classes(sched);
+        NSArray *cls = imported[@"classes"];
+        NSDictionary *phys = nil, *writing = nil;
+        for (NSDictionary *c in cls) {
+            if ([c[@"code"] isEqualToString:@"PHYS 1151"]) phys = c;
+            if ([c[@"name"] isEqualToString:@"Writing Seminar"]) writing = c;
+        }
+        struct { const char *label; BOOL ok; } classChecks[] = {
+            { "two classes found",         cls.count == 2 },
+            { "code split from title",     phys != nil &&
+                  [phys[@"name"] isEqualToString:@"Physics for Engineering 1"] },
+            { "rrule byday expanded",      phys != nil &&
+                  [DaysToText(phys[@"days"]) isEqualToString:@"Mon Wed Fri"] },
+            { "tzid clock preserved",      phys != nil &&
+                  [phys[@"start"] isEqualToString:@"09:15"] },
+            { "room read from location",   phys != nil &&
+                  [phys[@"room"] isEqualToString:@"Science Hall 210"] },
+            { "repeats merge into days",   writing != nil &&
+                  [DaysToText(writing[@"days"]) isEqualToString:@"Mon Wed"] },
+            { "utc converted to local",    writing != nil &&
+                  [writing[@"start"] isEqualToString:@"14:50"] },
+            { "term spans the rrule",      [imported[@"term"][@"start"] intValue] == 20260909 &&
+                  [imported[@"term"][@"end"] intValue] == 20261220 },
+            { "empty calendar returns nil", cb_ics_classes(@"BEGIN:VCALENDAR\r\nEND:VCALENDAR")
+                  == nil },
+        };
+        for (size_t i = 0; i < sizeof(classChecks) / sizeof(classChecks[0]); i++) {
+            if (!classChecks[i].ok) fails++;
+            printf("  %-4s %s\n", classChecks[i].ok ? "ok" : "FAIL", classChecks[i].label);
+        }
+
+        printf("\nsettings round trip\n");
+        SettingsWindow *sw = [[SettingsWindow alloc] init];
+        [sw load];
+        NSDictionary *rebuilt = [sw buildRoot];
+        NSArray *live = gSched.byDay[0];
+        NSMutableArray *mondays = [NSMutableArray array];
+        for (NSDictionary *c in rebuilt[@"classes"])
+            if ([c[@"days"] containsObject:@0]) [mondays addObject:c];
+
+        struct { const char *label; BOOL ok; } tripChecks[] = {
+            { "loads every class",     sw.classes.count ==
+                  [[NSJSONSerialization JSONObjectWithData:
+                      [NSData dataWithContentsOfFile:SchedulePath()]
+                      options:0 error:NULL][@"classes"] count] },
+            { "no validation problems", [sw problems].count == 0 },
+            { "monday count matches",  mondays.count == live.count },
+            { "term survives",         [rebuilt[@"term"][@"start"] intValue] ==
+                                       gSched.termStart },
+            { "feed field round trips", [rebuilt[@"canvasFeed"] isEqualToString:
+                  sw.feedField.stringValue] },
+            { "serialises to json",    [NSJSONSerialization
+                  isValidJSONObject:rebuilt] },
+        };
+        for (size_t i = 0; i < sizeof(tripChecks) / sizeof(tripChecks[0]); i++) {
+            if (!tripChecks[i].ok) fails++;
+            printf("  %-4s %s\n", tripChecks[i].ok ? "ok" : "FAIL", tripChecks[i].label);
+        }
 
         printf("\nassignment cache\n");
         NSArray *up = LoadUpcoming();
