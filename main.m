@@ -119,6 +119,28 @@ static NSDictionary *cb_notice(NSString *title, NSString *when) {
               @"notice": @YES };
 }
 
+static NSString *cb_next_tip(Schedule *s, int day) {
+    for (int k = 1; k <= 7; k++) {
+        int nd = (day + k) % 7;
+        NSArray *list = s.byDay[nd];
+        if (!list.count) continue;
+        NSDictionary *c = list[0];
+        NSMutableString *t = [NSMutableString stringWithFormat:@"Next: %@", c[@"name"]];
+        if ([c[@"code"] length]) [t appendFormat:@" (%@)", c[@"code"]];
+        [t appendFormat:@"\n%.3s %@", kDayName[nd], HHMMshort([c[@"start"] intValue])];
+        if ([c[@"room"] length]) [t appendFormat:@"\n%@", c[@"room"]];
+        return t;
+    }
+    return @"";
+}
+
+static NSDictionary *cb_done(Schedule *s, int day) {
+    NSMutableDictionary *m = [cb_notice(@"done for the day! :3", @"") mutableCopy];
+    m[@"tip"] = cb_next_tip(s, day);
+    m[@"done"] = @YES;
+    return m;
+}
+
 static NSArray *cb_series(Schedule *s, int ymd, int mins, int day, int count) {
     NSMutableArray *out = [NSMutableArray array];
     if (s.loadError)
@@ -167,6 +189,11 @@ static NSArray *cb_series(Schedule *s, int ymd, int mins, int day, int count) {
             continue;
         }
 
+        if (d == day && [s.byDay[day] count]) {
+            [out addObject:cb_done(s, day)];
+            break;
+        }
+
         BOOL rolled = NO;
         for (int k = 1; k <= 7 && !rolled; k++) {
             int nd = (d + k) % 7;
@@ -201,6 +228,82 @@ static void DrawSymbol(NSString *name, CGFloat pt, NSColor *color, NSRect box) {
           operation:NSCompositingOperationSourceOver fraction:1.0];
 }
 
+static BOOL CardHasDetail(NSString *when, NSString *room, NSString *zoom) {
+    return when.length > 0 || room.length > 0 || zoom.length > 0;
+}
+
+static CGFloat CardHeight(NSString *when, NSString *room, NSString *zoom) {
+    return CardHasDetail(when, room, zoom) ? 52.0 : 34.0;
+}
+
+static NSPanel *gTipPanel;
+static NSTextField *gTipLabel;
+
+static void TipHide(void) {
+    [gTipPanel orderOut:nil];
+}
+
+static void TipShow(NSString *text, NSRect anchor) {
+    if (!text.length) { TipHide(); return; }
+
+    if (!gTipPanel) {
+        gTipPanel = [[NSPanel alloc]
+            initWithContentRect:NSMakeRect(0, 0, 40, 20)
+                      styleMask:NSWindowStyleMaskBorderless |
+                                NSWindowStyleMaskNonactivatingPanel
+                        backing:NSBackingStoreBuffered
+                          defer:NO];
+        gTipPanel.opaque = NO;
+        gTipPanel.backgroundColor = [NSColor clearColor];
+        gTipPanel.hasShadow = YES;
+        gTipPanel.level = NSPopUpMenuWindowLevel + 1;
+        gTipPanel.ignoresMouseEvents = YES;
+        gTipPanel.floatingPanel = YES;
+        gTipPanel.collectionBehavior = NSWindowCollectionBehaviorCanJoinAllSpaces |
+                                       NSWindowCollectionBehaviorFullScreenAuxiliary |
+                                       NSWindowCollectionBehaviorIgnoresCycle;
+
+        NSVisualEffectView *bg = [[NSVisualEffectView alloc] initWithFrame:NSZeroRect];
+        bg.material = NSVisualEffectMaterialToolTip;
+        bg.blendingMode = NSVisualEffectBlendingModeBehindWindow;
+        bg.state = NSVisualEffectStateActive;
+        bg.wantsLayer = YES;
+        bg.layer.cornerRadius = 6;
+        bg.layer.masksToBounds = YES;
+
+        gTipLabel = [NSTextField labelWithString:@""];
+        gTipLabel.font = [NSFont systemFontOfSize:11.5];
+        gTipLabel.textColor = [NSColor labelColor];
+        gTipLabel.lineBreakMode = NSLineBreakByWordWrapping;
+        gTipLabel.maximumNumberOfLines = 0;
+        [bg addSubview:gTipLabel];
+        gTipPanel.contentView = bg;
+    }
+
+    gTipLabel.stringValue = text;
+    gTipLabel.preferredMaxLayoutWidth = 280;
+    NSSize ts = [gTipLabel sizeThatFits:NSMakeSize(280, 4000)];
+    ts.width = ceil(ts.width);
+    ts.height = ceil(ts.height);
+    gTipLabel.frame = NSMakeRect(9, 6, ts.width, ts.height);
+
+    NSRect frame = NSMakeRect(NSMinX(anchor) - 8 - (ts.width + 18),
+                              NSMidY(anchor) - (ts.height + 12) * 0.5,
+                              ts.width + 18, ts.height + 12);
+
+    NSScreen *scr = [NSScreen mainScreen];
+    for (NSScreen *s in [NSScreen screens])
+        if (NSIntersectsRect(s.frame, anchor)) { scr = s; break; }
+    NSRect vis = scr.visibleFrame;
+    if (NSMinX(frame) < NSMinX(vis) + 6) frame.origin.x = NSMaxX(anchor) + 8;
+    if (NSMaxX(frame) > NSMaxX(vis) - 6) frame.origin.x = NSMaxX(vis) - 6 - NSWidth(frame);
+    if (NSMinY(frame) < NSMinY(vis) + 6) frame.origin.y = NSMinY(vis) + 6;
+    if (NSMaxY(frame) > NSMaxY(vis) - 6) frame.origin.y = NSMaxY(vis) - 6 - NSHeight(frame);
+
+    [gTipPanel setFrame:frame display:NO];
+    [gTipPanel orderFrontRegardless];
+}
+
 @interface CardView : NSView
 @property (copy) NSString *title;
 @property (copy) NSString *code;
@@ -208,7 +311,10 @@ static void DrawSymbol(NSString *name, CGFloat pt, NSColor *color, NSRect box) {
 @property (copy) NSString *room;
 @property (copy) NSString *link;
 @property (copy) NSString *zoom;
+@property (copy) NSString *tip;
 @property (strong) NSColor *bg;
+@property (strong) NSTimer *tipTimer;
+@property (assign) BOOL tipShown;
 @property (assign) BOOL hovered;
 @property (assign) BOOL overPill;
 @end
@@ -226,6 +332,27 @@ static void DrawSymbol(NSString *name, CGFloat pt, NSColor *color, NSRect box) {
                owner:self userInfo:nil]];
 }
 
+- (void)cancelTip {
+    [self.tipTimer invalidate];
+    self.tipTimer = nil;
+    if (self.tipShown) { self.tipShown = NO; TipHide(); }
+}
+
+- (void)scheduleTip {
+    if (!self.tip.length || self.tipTimer || self.tipShown) return;
+    __weak CardView *weak = self;
+    self.tipTimer = [NSTimer timerWithTimeInterval:0.45 repeats:NO
+                                             block:^(NSTimer *t __unused) {
+        CardView *me = weak;
+        me.tipTimer = nil;
+        if (!me.window || !me.hovered) return;
+        me.tipShown = YES;
+        TipShow(me.tip, [me.window convertRectToScreen:
+                            [me convertRect:me.bounds toView:nil]]);
+    }];
+    [[NSRunLoop currentRunLoop] addTimer:self.tipTimer forMode:NSRunLoopCommonModes];
+}
+
 - (void)syncHoverAt:(NSPoint)pt {
     BOOL onPill = self.zoom.length && NSPointInRect(pt, [self pillRect]);
     if (onPill != self.overPill || !self.hovered) {
@@ -233,6 +360,7 @@ static void DrawSymbol(NSString *name, CGFloat pt, NSColor *color, NSRect box) {
         self.hovered = YES;
         self.needsDisplay = YES;
     }
+    [self scheduleTip];
 }
 
 - (void)mouseMoved:(NSEvent *)e {
@@ -259,17 +387,19 @@ static void DrawSymbol(NSString *name, CGFloat pt, NSColor *color, NSRect box) {
 
 - (void)mouseExited:(NSEvent *)e {
     self.hovered = NO; self.overPill = NO; self.needsDisplay = YES;
+    [self cancelTip];
 }
 
 - (void)viewDidMoveToWindow {
     [super viewDidMoveToWindow];
-    if (!self.window) { self.hovered = NO; self.overPill = NO; }
+    if (!self.window) { self.hovered = NO; self.overPill = NO; [self cancelTip]; }
 }
 
 - (void)mouseUp:(NSEvent *)e {
     NSPoint pt = [self convertPoint:e.locationInWindow fromView:nil];
     NSString *target = (self.zoom.length && NSPointInRect(pt, [self pillRect]))
                      ? self.zoom : self.link;
+    [self cancelTip];
     [self.enclosingMenuItem.menu cancelTracking];
     if (target.length) {
         NSURL *u = [NSURL URLWithString:target];
@@ -315,6 +445,12 @@ static void DrawSymbol(NSString *name, CGFloat pt, NSColor *color, NSRect box) {
         [head appendAttributedString:[[NSAttributedString alloc]
             initWithString:[NSString stringWithFormat:@"  (%@)", self.code] attributes:cAttr]];
     }
+    if (!CardHasDetail(self.when, self.room, self.zoom)) {
+        [head drawAtPoint:NSMakePoint(NSMinX(box) + 9,
+                                      NSMidY(box) - [head size].height * 0.5)];
+        return;
+    }
+
     [head drawAtPoint:NSMakePoint(NSMinX(box) + 9, topY)];
     [self.when drawAtPoint:NSMakePoint(NSMinX(box) + 9, botY) withAttributes:sAttr];
 
@@ -344,11 +480,13 @@ static void DrawSymbol(NSString *name, CGFloat pt, NSColor *color, NSRect box) {
 @end
 
 static NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *room,
-                            NSString *link, NSString *zoom, NSColor *bg, CGFloat width) {
-    CardView *v = [[CardView alloc] initWithFrame:NSMakeRect(0, 0, width, 52)];
+                            NSString *link, NSString *zoom, NSString *tip,
+                            NSColor *bg, CGFloat width) {
+    CardView *v = [[CardView alloc]
+        initWithFrame:NSMakeRect(0, 0, width, CardHeight(when, room, zoom))];
     v.autoresizingMask = NSViewWidthSizable;
     v.title = title; v.code = code; v.when = when; v.room = room;
-    v.link = link; v.zoom = zoom; v.bg = bg;
+    v.link = link; v.zoom = zoom; v.tip = tip; v.bg = bg;
     NSMenuItem *i = [[NSMenuItem alloc] init];
     i.view = v;
     return i;
@@ -608,10 +746,13 @@ static NSString *Clip(NSString *s, NSUInteger n) {
         NSColor *blue   = [NSColor colorWithSRGBRed:0.651 green:0.839 blue:0.933 alpha:1.0];
         for (NSUInteger k = 0; k < series.count; k++) {
             NSDictionary *e = series[k];
-            NSString *t = k == 0 ? e[@"title"]
+            NSString *t = (k == 0 || [e[@"notice"] boolValue])
+                        ? e[@"title"]
                         : [NSString stringWithFormat:@"Next: %@", e[@"title"]];
             [menu addItem:CardItem(t, e[@"code"], e[@"when"], e[@"room"], e[@"link"],
-                                   e[@"zoom"], k == 0 ? purple : blue, cardWidth)];
+                                   e[@"zoom"], e[@"tip"],
+                                   (k == 0 && ![e[@"done"] boolValue]) ? purple : blue,
+                                   cardWidth)];
         }
     }
 
@@ -832,9 +973,9 @@ int main(void) {
         T("Mon 10:20 (end edge)",     20260914, 620,  0, "CHEM Recitation", "11:45a • in 1h 25m");
         T("Mon 4:30 (CRWT ended)",    20260914, 990,  0, "Cornerstone 1",   "4:35p • in 5m");
         T("Mon 4:35 (Cornerstone)",   20260914, 995,  0, "Cornerstone 1",   "4:35p • 1h 5m left");
-        T("Mon 6:00 PM -> Wed",       20260914, 1080, 0, "Gen Chem",        "Wed 9:15a");
+        T("Mon 6:00 PM (day over)",   20260914, 1080, 0, "done for the day! :3", "");
         T("Tue -> Wed",               20260915, 700,  1, "Gen Chem",        "Wed 9:15a");
-        T("Thu 6:00 PM -> Mon",       20260917, 1080, 3, "Gen Chem",        "Mon 9:15a");
+        T("Thu 6:00 PM (day over)",   20260917, 1080, 3, "done for the day! :3", "");
         T("Fri -> Mon",               20260918, 700,  4, "Gen Chem",        "Mon 9:15a");
         T("Sun -> Mon",               20260920, 700,  6, "Gen Chem",        "Mon 9:15a");
         T("Thu 10:30 -> Calculus",    20260917, 630,  3, "Calculus 2",      "1:35p • in 3h 5m");
@@ -843,8 +984,18 @@ int main(void) {
         printf("\ncb_series — current + next pairing\n");
         T2("Mon 9:30 in Gen Chem",    20260914, 570,  0, "Gen Chem", "CHEM Recitation");
         T2("Mon 4:00 in CRWT",        20260914, 960,  0, "Creative Writing", "Cornerstone 1");
-        T2("Thu evening rolls to Mon",20260917, 1080, 3, "Gen Chem", "CHEM Recitation");
+        T2("Thu evening is done",     20260917, 1080, 3, "done for the day! :3", "");
         T2("Tue (free) -> Wed pair",  20260915, 700,  1, "Gen Chem", "Calculus 2");
+        T2("Mon 5:00 last class",     20260914, 1020, 0, "Cornerstone 1", "done for the day! :3");
+        T2("Mon 4:30 before last",    20260914, 990,  0, "Cornerstone 1", "done for the day! :3");
+        T2("Thu 5:00 last class",     20260917, 1020, 3, "Cornerstone 1", "done for the day! :3");
+
+        printf("\ndone-for-the-day tip\n");
+        NSString *tip = cb_series(gSched, 20260914, 1080, 0, 1)[0][@"tip"];
+        BOOL tipOK = [tip hasPrefix:@"Next: Gen Chem"] &&
+                     [tip containsString:@"Wed 9:15a"];
+        printf("  %-4s done card names the next class\n", tipOK ? "ok" : "FAIL");
+        if (!tipOK) { fails++; printf("       got [%s]\n", tip.UTF8String); }
 
         printf("\nzoom + canvas links\n");
         NSArray *crwt = cb_series(gSched, 20260914, 960, 0, 1);
