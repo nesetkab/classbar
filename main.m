@@ -13,6 +13,17 @@ static NSString *CachePath(void) {
             @"Library/Caches/classbar/upcoming.json"];
 }
 
+static const int kDefaultAssignmentCap = 25;
+static const int kMinAssignmentCap = 1;
+static const int kMaxAssignmentCap = 100;
+static const int kCacheAssignmentCap = 200;
+
+static int ClampCap(int n) {
+    if (n < kMinAssignmentCap) return kMinAssignmentCap;
+    if (n > kMaxAssignmentCap) return kMaxAssignmentCap;
+    return n;
+}
+
 static int ParseClock(NSString *s) {
     if (![s isKindOfClass:[NSString class]]) return -1;
     NSArray *parts = [s componentsSeparatedByString:@":"];
@@ -29,6 +40,7 @@ static int ParseClock(NSString *s) {
 @property (assign) int termEnd;
 @property (copy)   NSString *beforeLabel;
 @property (copy)   NSString *canvasFeed;
+@property (assign) int assignmentCap;
 @property (copy)   NSString *loadError;
 @end
 
@@ -40,6 +52,7 @@ static int ParseClock(NSString *s) {
     s.termStart = 0;
     s.termEnd = 99999999;
     s.beforeLabel = @"Term hasn't started";
+    s.assignmentCap = kDefaultAssignmentCap;
 
     NSData *d = [NSData dataWithContentsOfFile:SchedulePath()];
     if (!d) {
@@ -57,6 +70,8 @@ static int ParseClock(NSString *s) {
 
     if ([root[@"canvasHome"] isKindOfClass:[NSString class]]) s.canvasHome = root[@"canvasHome"];
     if ([root[@"canvasFeed"] isKindOfClass:[NSString class]]) s.canvasFeed = root[@"canvasFeed"];
+    if ([root[@"assignmentCap"] isKindOfClass:[NSNumber class]])
+        s.assignmentCap = ClampCap([root[@"assignmentCap"] intValue]);
     NSDictionary *term = root[@"term"];
     if ([term isKindOfClass:[NSDictionary class]]) {
         if ([term[@"start"] isKindOfClass:[NSNumber class]]) s.termStart = [term[@"start"] intValue];
@@ -1062,6 +1077,8 @@ static NSDate *DateFromYMD(int ymd) {
 @property (strong) NSDatePicker *startPicker;
 @property (strong) NSDatePicker *endPicker;
 @property (strong) NSTextField *beforeField;
+@property (strong) NSTextField *capField;
+@property (strong) NSStepper *capStepper;
 @property (strong) NSTableView *table;
 @property (strong) NSTextField *statusLabel;
 @property (weak)   id target;
@@ -1127,20 +1144,43 @@ static NSDate *DateFromYMD(int ymd) {
     self.endPicker.datePickerElements = NSDatePickerElementFlagYearMonthDay;
     self.endPicker.datePickerStyle = NSDatePickerStyleTextFieldAndStepper;
 
+    self.capField = [NSTextField textFieldWithString:@""];
+    self.capField.alignment = NSTextAlignmentRight;
+    self.capField.target = self;
+    self.capField.action = @selector(capFieldEdited);
+    [self.capField.widthAnchor constraintEqualToConstant:56].active = YES;
+
+    self.capStepper = [[NSStepper alloc] init];
+    self.capStepper.minValue = kMinAssignmentCap;
+    self.capStepper.maxValue = kMaxAssignmentCap;
+    self.capStepper.increment = 1;
+    self.capStepper.valueWraps = NO;
+    self.capStepper.target = self;
+    self.capStepper.action = @selector(capStepperMoved);
+
+    NSTextField *capSuffix = [NSTextField labelWithString:@"rows in the menu"];
+    capSuffix.textColor = [NSColor secondaryLabelColor];
+
+    NSStackView *capRow = [NSStackView stackViewWithViews:@[
+        self.capField, self.capStepper, capSuffix]];
+    capRow.spacing = 6;
+
     NSGridView *grid = [NSGridView gridViewWithViews:@[
         @[[self labelWithText:@"Canvas feed URL"], self.feedField],
         @[[self labelWithText:@"Canvas home"], self.homeField],
         @[[self labelWithText:@"Term starts"], self.startPicker],
         @[[self labelWithText:@"Term ends"], self.endPicker],
         @[[self labelWithText:@"Before term"], self.beforeField],
+        @[[self labelWithText:@"Show at most"], capRow],
     ]];
     grid.rowSpacing = 8;
     grid.columnSpacing = 10;
     [grid columnAtIndex:0].width = 130;
     [grid columnAtIndex:0].xPlacement = NSGridCellPlacementTrailing;
     [grid columnAtIndex:1].xPlacement = NSGridCellPlacementFill;
-    for (NSInteger row = 2; row <= 3; row++)
-        [grid cellAtColumnIndex:1 rowIndex:row].xPlacement = NSGridCellPlacementLeading;
+    for (NSNumber *row in @[@2, @3, @5])
+        [grid cellAtColumnIndex:1 rowIndex:row.integerValue].xPlacement =
+            NSGridCellPlacementLeading;
 
     self.table = [[NSTableView alloc] init];
     self.table.dataSource = self;
@@ -1218,6 +1258,20 @@ static NSDate *DateFromYMD(int ymd) {
     self.statusLabel.stringValue = text ?: @"";
 }
 
+- (void)setCap:(int)cap {
+    int clamped = ClampCap(cap);
+    self.capField.stringValue = [NSString stringWithFormat:@"%d", clamped];
+    self.capStepper.integerValue = clamped;
+}
+
+- (void)capFieldEdited {
+    [self setCap:self.capField.intValue];
+}
+
+- (void)capStepperMoved {
+    [self setCap:(int)self.capStepper.integerValue];
+}
+
 - (void)load {
     NSData *d = [NSData dataWithContentsOfFile:SchedulePath()];
     id root = d ? [NSJSONSerialization JSONObjectWithData:d options:0 error:NULL] : nil;
@@ -1227,6 +1281,8 @@ static NSDate *DateFromYMD(int ymd) {
         ? root[@"canvasFeed"] : @"";
     self.homeField.stringValue = [root[@"canvasHome"] isKindOfClass:[NSString class]]
         ? root[@"canvasHome"] : @"";
+    [self setCap:[root[@"assignmentCap"] isKindOfClass:[NSNumber class]]
+        ? [root[@"assignmentCap"] intValue] : kDefaultAssignmentCap];
 
     NSDictionary *term = [root[@"term"] isKindOfClass:[NSDictionary class]]
         ? root[@"term"] : @{};
@@ -1403,6 +1459,7 @@ static NSDate *DateFromYMD(int ymd) {
     return @{
         @"canvasHome": self.homeField.stringValue,
         @"canvasFeed": self.feedField.stringValue,
+        @"assignmentCap": @(ClampCap(self.capField.intValue)),
         @"term": @{ @"start": @(YMD(self.startPicker.dateValue)),
                     @"end": @(YMD(self.endPicker.dateValue)),
                     @"beforeLabel": self.beforeField.stringValue },
@@ -1494,6 +1551,8 @@ static NSDate *DateFromYMD(int ymd) {
     if (day < 0) day = 6;
 
     NSArray *up = LoadUpcoming();
+    if ((int)up.count > self.schedule.assignmentCap)
+        up = [up subarrayWithRange:NSMakeRange(0, (NSUInteger)self.schedule.assignmentCap)];
 
     NSDictionary *rowFont = @{ NSFontAttributeName: [NSFont systemFontOfSize:12] };
     CGFloat rowMax = 0;
@@ -1677,7 +1736,8 @@ static NSDate *DateFromYMD(int ymd) {
         NSString *body = (data && !err && code < 400)
             ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
         NSArray *items = body ? cb_ics_window(cb_ics_items(body, home),
-                                              [NSDate date], 14, 21, 25)
+                                              [NSDate date], 14, 21,
+                                              kCacheAssignmentCap)
                               : nil;
         dispatch_async(dispatch_get_main_queue(), ^{
             [weak finishFetch:items failure:(code >= 400 ? @"Canvas said no" : nil)];
@@ -1756,6 +1816,8 @@ int main(int argc, char **argv) {
         if (argc > 2 && strcmp(argv[1], "--shot") == 0) {
             SettingsWindow *sw = [[SettingsWindow alloc] init];
             [sw load];
+            if (sw.feedField.stringValue.length)
+                sw.feedField.stringValue = @"https://redacted.instructure.com/feeds/…";
             [sw.window setFrameOrigin:NSMakePoint(-5000, -5000)];
             [sw.window orderFrontRegardless];
             NSView *v = sw.window.contentView;
@@ -1784,7 +1846,7 @@ int main(int argc, char **argv) {
                                                           error:NULL];
             if (!text) { printf("cannot read %s\n", argv[1]); return 1; }
             NSArray *all = cb_ics_items(text, gSched.canvasHome);
-            NSArray *kept = cb_ics_window(all, [NSDate date], 14, 21, 25);
+            NSArray *kept = cb_ics_window(all, [NSDate date], 14, 21, kCacheAssignmentCap);
             printf("%s\n  %lu assignments, %lu in window\n", argv[1],
                    (unsigned long)all.count, (unsigned long)kept.count);
             NSCalendar *c = [NSCalendar currentCalendar];
@@ -1993,6 +2055,24 @@ int main(int argc, char **argv) {
             printf("  %-4s %s\n", classChecks[i].ok ? "ok" : "FAIL", classChecks[i].label);
         }
 
+        printf("\nassignment cap\n");
+        struct { const char *label; BOOL ok; } capChecks[] = {
+            { "clamps below the minimum", ClampCap(0) == kMinAssignmentCap &&
+                                          ClampCap(-5) == kMinAssignmentCap },
+            { "clamps above the maximum", ClampCap(1000) == kMaxAssignmentCap },
+            { "passes a sane value",      ClampCap(12) == 12 },
+            { "default is in range",      ClampCap(kDefaultAssignmentCap) ==
+                                          kDefaultAssignmentCap },
+            { "cache holds more than the menu shows",
+                                          kCacheAssignmentCap > kMaxAssignmentCap },
+            { "schedule reads the cap",   gSched.assignmentCap >= kMinAssignmentCap &&
+                                          gSched.assignmentCap <= kMaxAssignmentCap },
+        };
+        for (size_t i = 0; i < sizeof(capChecks) / sizeof(capChecks[0]); i++) {
+            if (!capChecks[i].ok) fails++;
+            printf("  %-4s %s\n", capChecks[i].ok ? "ok" : "FAIL", capChecks[i].label);
+        }
+
         printf("\nsettings round trip\n");
         SettingsWindow *sw = [[SettingsWindow alloc] init];
         [sw load];
@@ -2013,6 +2093,16 @@ int main(int argc, char **argv) {
                                        gSched.termStart },
             { "feed field round trips", [rebuilt[@"canvasFeed"] isEqualToString:
                   sw.feedField.stringValue] },
+            { "cap round trips",       [rebuilt[@"assignmentCap"] intValue] ==
+                  ClampCap(sw.capField.intValue) },
+            { "typed junk clamps",     ({ [sw setCap:9999];
+                  BOOL high = [[sw buildRoot][@"assignmentCap"] intValue] ==
+                      kMaxAssignmentCap;
+                  [sw setCap:0];
+                  BOOL low = [[sw buildRoot][@"assignmentCap"] intValue] ==
+                      kMinAssignmentCap;
+                  [sw load];
+                  high && low; }) },
             { "serialises to json",    [NSJSONSerialization
                   isValidJSONObject:rebuilt] },
         };

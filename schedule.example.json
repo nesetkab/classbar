@@ -1,6 +1,7 @@
 {
   "canvasHome": "https://example.instructure.com/",
   "canvasFeed": "https://example.instructure.com/feeds/calendars/user_REPLACE_WITH_YOUR_TOKEN.ics",
+  "assignmentCap": 25,
   "term": {
     "start": 20260909,
     "end": 20261220,
