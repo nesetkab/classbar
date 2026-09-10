@@ -44,8 +44,14 @@ install: app
 	sed -e 's|@BUNDLE_ID@|$(BUNDLE_ID)|g' \
 	    -e 's|@EXEC_PATH@|$(EXEC)|g' \
 	    packaging/agent.plist.in > "$(AGENT)"
-	launchctl bootout gui/$(UID)/$(BUNDLE_ID) 2>/dev/null || true
-	launchctl bootstrap gui/$(UID) "$(AGENT)"
+	@launchctl bootout gui/$(UID)/$(BUNDLE_ID) 2>/dev/null || true
+	@n=0; until launchctl bootstrap gui/$(UID) "$(AGENT)" 2>/dev/null; do \
+	  n=$$((n+1)); \
+	  if [ $$n -ge 10 ]; then \
+	    echo "launchctl bootstrap failed after $$n tries" >&2; exit 1; \
+	  fi; \
+	  sleep 0.5; \
+	done
 	launchctl kickstart -k gui/$(UID)/$(BUNDLE_ID)
 	@echo "installed $(APP) as $(BUNDLE_ID)"
 
