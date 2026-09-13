@@ -15,15 +15,11 @@ extern const char * const kDayName[7];
 @end
 
 int ParseClock(NSString *s);
-NSString *DUR(int m);
-NSString *HHMMshort(int m);
 
 NSString *TipText(NSString *heading, NSArray *lines);
 NSString *TipJoin(NSArray *parts);
-NSString *TipClassLine(NSDictionary *c);
 
 NSArray *cb_series(Schedule *s, int ymd, int mins, int day, int count);
 
-NSArray *DayTokens(void);
 NSString *DaysToText(NSArray *days);
 NSArray *TextToDays(NSString *text);

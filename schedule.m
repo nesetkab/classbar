@@ -11,7 +11,6 @@ int ParseClock(NSString *s) {
     return h * 60 + m;
 }
 
-
 @implementation Schedule
 
 + (instancetype)loadFromDisk {
@@ -80,7 +79,7 @@ int ParseClock(NSString *s) {
 
 @end
 
-NSString *DUR(int m) {
+static NSString *DUR(int m) {
     if (m < 60) return [NSString stringWithFormat:@"%dm", m];
     int h = m / 60, r = m % 60;
     return r ? [NSString stringWithFormat:@"%dh %dm", h, r]
@@ -91,13 +90,7 @@ const char * const kDayName[7] = {
     "Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"
 };
 
-NSString *HHMMshort(int m) {
-    int h24 = m / 60, mm = m % 60;
-    int h = h24 % 12; if (h == 0) h = 12;
-    return [NSString stringWithFormat:@"%d:%02d%s", h, mm, h24 >= 12 ? "p" : "a"];
-}
-
-NSDictionary *cb_notice(NSString *title, NSString *when) {
+static NSDictionary *cb_notice(NSString *title, NSString *when) {
     return @{ @"title": title, @"code": @"", @"when": when ?: @"",
               @"room": @"", @"link": @"", @"zoom": @"", @"now": @NO,
               @"notice": @YES };
@@ -116,11 +109,11 @@ NSString *TipJoin(NSArray *parts) {
     return [out componentsJoinedByString:@" · "];
 }
 
-NSString *TipClassLine(NSDictionary *c) {
+static NSString *TipClassLine(NSDictionary *c) {
     return TipJoin(@[HHMMshort([c[@"start"] intValue]), c[@"name"], c[@"room"] ?: @""]);
 }
 
-NSString *cb_next_day_tip(Schedule *s, int day) {
+static NSString *cb_next_day_tip(Schedule *s, int day) {
     for (int k = 1; k <= 7; k++) {
         int nd = (day + k) % 7;
         NSArray *list = s.byDay[nd];
@@ -132,7 +125,7 @@ NSString *cb_next_day_tip(Schedule *s, int day) {
     return @"";
 }
 
-NSDictionary *cb_done(Schedule *s, int day) {
+static NSDictionary *cb_done(Schedule *s, int day) {
     NSMutableDictionary *m = [cb_notice(@"done for the day! :3", @"") mutableCopy];
     m[@"tip"] = cb_next_day_tip(s, day);
     m[@"done"] = @YES;
@@ -213,7 +206,7 @@ NSArray *cb_series(Schedule *s, int ymd, int mins, int day, int count) {
     return out;
 }
 
-NSArray *DayTokens(void) {
+static NSArray *DayTokens(void) {
     return @[@"Mon", @"Tue", @"Wed", @"Thu", @"Fri", @"Sat", @"Sun"];
 }
 

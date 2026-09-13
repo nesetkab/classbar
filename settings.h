@@ -1,7 +1,5 @@
 #import <Cocoa/Cocoa.h>
 
-NSDate *DateFromYMD(int ymd);
-
 @interface SettingsWindow : NSObject <NSTableViewDataSource, NSTableViewDelegate>
 @property (strong) NSWindow *window;
 @property (strong) NSMutableArray *classes;

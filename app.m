@@ -20,10 +20,8 @@
 @property (copy)   NSString *link;
 @end
 
-
 static const NSTimeInterval kRefreshFloorSeconds = 10;
 static const NSTimeInterval kStaleSeconds = 300;
-
 
 @implementation ClassBar
 

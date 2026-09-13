@@ -6,7 +6,7 @@
 #import "schedule.h"
 #import "store.h"
 
-NSDate *DateFromYMD(int ymd) {
+static NSDate *DateFromYMD(int ymd) {
     NSDateComponents *c = [[NSDateComponents alloc] init];
     c.year = ymd / 10000;
     c.month = (ymd / 100) % 100;
@@ -14,7 +14,6 @@ NSDate *DateFromYMD(int ymd) {
     if (c.year < 1970 || c.month < 1 || c.month > 12) return [NSDate date];
     return [[NSCalendar currentCalendar] dateFromComponents:c] ?: [NSDate date];
 }
-
 
 @implementation SettingsWindow
 

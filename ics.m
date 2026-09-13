@@ -28,7 +28,7 @@ static NSString *IcsUnescape(NSString *v) {
         [NSCharacterSet whitespaceAndNewlineCharacterSet]];
 }
 
-NSDate *IcsDate(NSString *tzid, NSString *value) {
+static NSDate *IcsDate(NSString *tzid, NSString *value) {
     if (value.length < 8) return nil;
     NSDateFormatter *f = [[NSDateFormatter alloc] init];
     f.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
@@ -52,7 +52,7 @@ static BOOL IcsDateOnly(NSArray *parts, NSString *value) {
     return value.length == 8;
 }
 
-NSDate *EndOfDay(NSDate *date) {
+static NSDate *EndOfDay(NSDate *date) {
     NSCalendar *cal = [NSCalendar currentCalendar];
     NSDateComponents *c = [cal components:(NSCalendarUnitYear | NSCalendarUnitMonth |
                                            NSCalendarUnitDay)
@@ -63,7 +63,7 @@ NSDate *EndOfDay(NSDate *date) {
     return [cal dateFromComponents:c] ?: date;
 }
 
-NSString *FirstGroup(NSString *text, NSString *pattern) {
+static NSString *FirstGroup(NSString *text, NSString *pattern) {
     if (!text.length) return nil;
     NSRegularExpression *re = [NSRegularExpression regularExpressionWithPattern:pattern
                                                                        options:0
@@ -204,7 +204,7 @@ NSArray *cb_ics_window(NSArray *items, NSDate *now, int backDays,
     return out;
 }
 
-void SplitCourseTitle(NSString *summary, NSString **name, NSString **code) {
+static void SplitCourseTitle(NSString *summary, NSString **name, NSString **code) {
     *name = summary;
     *code = @"";
     NSRegularExpression *re = [NSRegularExpression
@@ -224,7 +224,7 @@ void SplitCourseTitle(NSString *summary, NSString **name, NSString **code) {
     if (stripped.length) *name = stripped;
 }
 
-NSString *ClockText(NSDate *date) {
+static NSString *ClockText(NSDate *date) {
     NSDateFormatter *f = [[NSDateFormatter alloc] init];
     f.locale = [NSLocale localeWithLocaleIdentifier:@"en_US_POSIX"];
     f.dateFormat = @"HH:mm";
@@ -238,7 +238,7 @@ int YMD(NSDate *date) {
     return (int)c.year * 10000 + (int)c.month * 100 + (int)c.day;
 }
 
-int WeekdayIndex(NSDate *date) {
+static int WeekdayIndex(NSDate *date) {
     NSInteger w = [[NSCalendar currentCalendar] component:NSCalendarUnitWeekday
                                                  fromDate:date];
     NSInteger i = w - 2;

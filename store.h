@@ -8,10 +8,10 @@ extern const int kCacheAssignmentCap;
 NSString *SchedulePath(void);
 NSString *CachePath(void);
 int ClampCap(int n);
+NSString *HHMMshort(int m);
 
 NSISO8601DateFormatter *ISOFormatter(void);
 BOOL WriteCache(NSArray *items);
-NSDictionary *LoadCache(void);
 NSArray *LoadUpcoming(void);
 NSString *CacheAgeLabel(void);
 NSDate *ParseISO(NSString *s);

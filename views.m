@@ -7,7 +7,7 @@
 
 const CGFloat kDueColumnGap = 12.0;
 
-NSImage *Symbol(NSString *name, CGFloat pt, NSColor *color) {
+static NSImage *Symbol(NSString *name, CGFloat pt, NSColor *color) {
     NSImage *img = [NSImage imageWithSystemSymbolName:name accessibilityDescription:nil];
     if (!img) return nil;
     NSImageSymbolConfiguration *size =
@@ -20,7 +20,7 @@ NSImage *Symbol(NSString *name, CGFloat pt, NSColor *color) {
         [size configurationByApplyingConfiguration:tint]];
 }
 
-void DrawSymbol(NSString *name, CGFloat pt, NSColor *color, NSRect box) {
+static void DrawSymbol(NSString *name, CGFloat pt, NSColor *color, NSRect box) {
     NSImage *img = Symbol(name, pt, color);
     if (!img) return;
     NSSize sz = img.size;
@@ -30,11 +30,11 @@ void DrawSymbol(NSString *name, CGFloat pt, NSColor *color, NSRect box) {
           operation:NSCompositingOperationSourceOver fraction:1.0];
 }
 
-BOOL CardHasDetail(NSString *when, NSString *room, NSString *zoom) {
+static BOOL CardHasDetail(NSString *when, NSString *room, NSString *zoom) {
     return when.length > 0 || room.length > 0 || zoom.length > 0;
 }
 
-CGFloat CardHeight(NSString *when, NSString *room, NSString *zoom) {
+static CGFloat CardHeight(NSString *when, NSString *room, NSString *zoom) {
     return CardHasDetail(when, room, zoom) ? 52.0 : 34.0;
 }
 
@@ -45,7 +45,7 @@ void TipHide(void) {
     [gTipPanel orderOut:nil];
 }
 
-void TipShow(NSString *text, NSRect anchor) {
+static void TipShow(NSString *text, NSRect anchor) {
     if (!text.length) { TipHide(); return; }
 
     if (!gTipPanel) {
@@ -105,7 +105,6 @@ void TipShow(NSString *text, NSRect anchor) {
     [gTipPanel setFrame:frame display:NO];
     [gTipPanel orderFrontRegardless];
 }
-
 
 @interface CardView : HoverTipView
 @property (copy) NSString *title;
@@ -298,7 +297,6 @@ void TipShow(NSString *text, NSRect anchor) {
 
 @end
 
-
 NSFont *DueFont(BOOL late) {
     return [NSFont monospacedDigitSystemFontOfSize:11
                                             weight:late ? NSFontWeightBold
@@ -393,7 +391,6 @@ NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *
     i.view = v;
     return i;
 }
-
 
 @implementation FooterView
 

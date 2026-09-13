@@ -1,6 +1,5 @@
 #import <Cocoa/Cocoa.h>
 #import "store.h"
-#import "schedule.h"
 
 NSString *SchedulePath(void) {
     return [NSHomeDirectory() stringByAppendingPathComponent:
@@ -16,10 +15,17 @@ const int kDefaultAssignmentCap = 25;
 const int kMinAssignmentCap = 1;
 const int kMaxAssignmentCap = 100;
 const int kCacheAssignmentCap = 200;
+
 int ClampCap(int n) {
     if (n < kMinAssignmentCap) return kMinAssignmentCap;
     if (n > kMaxAssignmentCap) return kMaxAssignmentCap;
     return n;
+}
+
+NSString *HHMMshort(int m) {
+    int h24 = m / 60, mm = m % 60;
+    int h = h24 % 12; if (h == 0) h = 12;
+    return [NSString stringWithFormat:@"%d:%02d%s", h, mm, h24 >= 12 ? "p" : "a"];
 }
 
 NSISO8601DateFormatter *ISOFormatter(void) {
@@ -42,7 +48,7 @@ BOOL WriteCache(NSArray *items) {
     return [d writeToFile:CachePath() atomically:YES];
 }
 
-NSDictionary *LoadCache(void) {
+static NSDictionary *LoadCache(void) {
     NSData *d = [NSData dataWithContentsOfFile:CachePath()];
     if (!d) return nil;
     id root = [NSJSONSerialization JSONObjectWithData:d options:0 error:NULL];
