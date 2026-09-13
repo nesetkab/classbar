@@ -572,11 +572,23 @@ static NSFont *NameFont(void) {
 }
 
 - (void)mouseUp:(NSEvent *)e __unused {
+    if (!self.link.length) return;
     [self cancelTip];
     [self.enclosingMenuItem.menu cancelTracking];
-    if (!self.link.length) return;
     NSURL *u = [NSURL URLWithString:self.link];
     if (u) [[NSWorkspace sharedWorkspace] openURL:u];
+}
+
+- (BOOL)isAccessibilityElement {
+    return YES;
+}
+
+- (NSAccessibilityRole)accessibilityRole {
+    return self.link.length ? NSAccessibilityButtonRole : NSAccessibilityStaticTextRole;
+}
+
+- (NSString *)accessibilityLabel {
+    return TipJoin(@[self.due ?: @"", self.name ?: @""]);
 }
 
 - (void)drawRect:(NSRect)dirty __unused {
@@ -797,8 +809,16 @@ static NSArray *cb_ics_items(NSString *text, NSString *canvasHome) {
         NSString *key = e[@"DTSTART"] ? @"DTSTART" : @"DTEND";
         NSDate *due = e[key];
         if (!summary.length || !due) continue;
-        if ([e[[key stringByAppendingString:@"-DATEONLY"]] boolValue])
+        if ([e[[key stringByAppendingString:@"-DATEONLY"]] boolValue]) {
+            if ([key isEqualToString:@"DTEND"]) {
+                NSDateComponents *back = [[NSDateComponents alloc] init];
+                back.day = -1;
+                due = [[NSCalendar currentCalendar] dateByAddingComponents:back
+                                                                    toDate:due
+                                                                   options:0] ?: due;
+            }
             due = EndOfDay(due);
+        }
 
         NSString *uid = e[@"UID"] ?: @"";
         NSString *url = e[@"URL"] ?: @"";
@@ -1668,6 +1688,8 @@ static NSDate *DateFromYMD(int ymd) {
 @property (weak)   FooterView *footer;
 @property (weak)   NSMenu *liveMenu;
 @property (assign) BOOL fetching;
+@property (assign) BOOL menuOpen;
+@property (strong) NSArray *cachedItems;
 @property (strong) SettingsWindow *settings;
 @property (copy)   NSString *link;
 @end
@@ -1717,8 +1739,9 @@ static NSDate *DateFromYMD(int ymd) {
     if (day < 0) day = 6;
 
     NSDate *now = [NSDate date];
+    self.cachedItems = LoadUpcoming();
     NSMutableArray *pending = [NSMutableArray array];
-    for (NSDictionary *a in LoadUpcoming()) {
+    for (NSDictionary *a in self.cachedItems) {
         if (![a isKindOfClass:[NSDictionary class]]) continue;
         NSDate *due = ParseISO(a[@"due"]);
         if (due && [due compare:now] == NSOrderedAscending) continue;
@@ -1735,7 +1758,8 @@ static NSDate *DateFromYMD(int ymd) {
         NSString *nm = a[@"name"];
         if (![nm isKindOfClass:[NSString class]]) continue;
         NSString *dl = DueLabel(cal, ParseISO(a[@"due"]));
-        CGFloat dw = [dl sizeWithAttributes:@{ NSFontAttributeName: DueFont(YES) }].width;
+        NSFont *dueFont = DueFont([dl isEqualToString:@"late"]);
+        CGFloat dw = [dl sizeWithAttributes:@{ NSFontAttributeName: dueFont }].width;
         if (dw > dueMax) dueMax = dw;
         CGFloat nw = [Clip(nm, 36) sizeWithAttributes:rowFont].width;
         if (nw > nameMax) nameMax = nw;
@@ -1910,8 +1934,9 @@ static NSDate *DateFromYMD(int ymd) {
         [self setFooterStatus:@"Cache write failed"];
         return;
     }
+    BOOL changed = !self.cachedItems || ![items isEqualToArray:self.cachedItems];
     NSMenu *m = self.liveMenu;
-    if (m.numberOfItems > 0) [self menuNeedsUpdate:m];
+    if (changed && self.menuOpen && m) [self menuNeedsUpdate:m];
     [self setFooterStatus:@"Updated"];
 }
 
@@ -1921,6 +1946,15 @@ static NSDate *DateFromYMD(int ymd) {
     if (stamp > 0 &&
         [NSDate date].timeIntervalSince1970 - stamp < kRefreshFloorSeconds) return;
     [self refreshNow];
+}
+
+- (void)menuWillOpen:(NSMenu *)menu __unused {
+    self.menuOpen = YES;
+}
+
+- (void)menuDidClose:(NSMenu *)menu __unused {
+    self.menuOpen = NO;
+    TipHide();
 }
 
 - (void)quitApp { [NSApp terminate:nil]; }
