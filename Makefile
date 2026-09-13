@@ -7,6 +7,9 @@ BUNDLE_ID ?= local.classbar
 SIGN_IDENTITY ?= -
 PREFIX ?= $(HOME)/Applications
 
+LIB := icons.m store.m schedule.m ics.m views.m settings.m app.m
+HEADERS := store.h schedule.h ics.h views.h settings.h app.h icons.h
+
 APP := $(PREFIX)/$(APP_NAME).app
 EXEC := $(APP)/Contents/MacOS/$(APP_NAME)
 AGENT := $(HOME)/Library/LaunchAgents/$(BUNDLE_ID).plist
@@ -17,11 +20,11 @@ UID := $(shell id -u)
 
 all: classbar
 
-classbar: main.m icons.h
-	$(CC) $(CFLAGS) $(LDFLAGS) main.m -o $@
+classbar: $(LIB) main.m $(HEADERS)
+	$(CC) $(CFLAGS) $(LDFLAGS) $(LIB) main.m -o $@
 
-cbtest: main.m icons.h
-	$(CC) $(CFLAGS) -DCLASSBAR_TEST $(LDFLAGS) main.m -o $@
+cbtest: $(LIB) tests.m $(HEADERS)
+	$(CC) $(CFLAGS) $(LDFLAGS) $(LIB) tests.m -o $@
 
 test: cbtest
 	./cbtest
@@ -44,14 +47,9 @@ install: app
 	sed -e 's|@BUNDLE_ID@|$(BUNDLE_ID)|g' \
 	    -e 's|@EXEC_PATH@|$(EXEC)|g' \
 	    packaging/agent.plist.in > "$(AGENT)"
-	@launchctl bootout gui/$(UID)/$(BUNDLE_ID) 2>/dev/null || true
-	@n=0; until launchctl bootstrap gui/$(UID) "$(AGENT)" 2>/dev/null; do \
-	  n=$$((n+1)); \
-	  if [ $$n -ge 10 ]; then \
-	    echo "launchctl bootstrap failed after $$n tries" >&2; exit 1; \
-	  fi; \
-	  sleep 0.5; \
-	done
+	launchctl bootout gui/$(UID)/$(BUNDLE_ID) 2>/dev/null || true
+	launchctl bootstrap gui/$(UID) "$(AGENT)" 2>/dev/null || \
+	  (sleep 1; launchctl bootstrap gui/$(UID) "$(AGENT)")
 	launchctl kickstart -k gui/$(UID)/$(BUNDLE_ID)
 	@echo "installed $(APP) as $(BUNDLE_ID)"
 

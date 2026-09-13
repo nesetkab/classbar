@@ -1,0 +1,110 @@
+#import <Cocoa/Cocoa.h>
+#import "store.h"
+#import "schedule.h"
+
+NSString *SchedulePath(void) {
+    return [NSHomeDirectory() stringByAppendingPathComponent:
+            @"Library/Application Support/classbar/schedule.json"];
+}
+
+NSString *CachePath(void) {
+    return [NSHomeDirectory() stringByAppendingPathComponent:
+            @"Library/Caches/classbar/assignments.json"];
+}
+
+const int kDefaultAssignmentCap = 25;
+const int kMinAssignmentCap = 1;
+const int kMaxAssignmentCap = 100;
+const int kCacheAssignmentCap = 200;
+int ClampCap(int n) {
+    if (n < kMinAssignmentCap) return kMinAssignmentCap;
+    if (n > kMaxAssignmentCap) return kMaxAssignmentCap;
+    return n;
+}
+
+NSISO8601DateFormatter *ISOFormatter(void) {
+    static NSISO8601DateFormatter *f;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{ f = [[NSISO8601DateFormatter alloc] init]; });
+    return f;
+}
+
+BOOL WriteCache(NSArray *items) {
+    NSDictionary *root = @{ @"generated": [ISOFormatter() stringFromDate:[NSDate date]],
+                            @"items": items ?: @[] };
+    NSData *d = [NSJSONSerialization dataWithJSONObject:root
+                                                options:NSJSONWritingPrettyPrinted
+                                                  error:NULL];
+    if (!d) return NO;
+    [[NSFileManager defaultManager]
+        createDirectoryAtPath:[CachePath() stringByDeletingLastPathComponent]
+      withIntermediateDirectories:YES attributes:nil error:NULL];
+    return [d writeToFile:CachePath() atomically:YES];
+}
+
+NSDictionary *LoadCache(void) {
+    NSData *d = [NSData dataWithContentsOfFile:CachePath()];
+    if (!d) return nil;
+    id root = [NSJSONSerialization JSONObjectWithData:d options:0 error:NULL];
+    return [root isKindOfClass:[NSDictionary class]] ? root : nil;
+}
+
+NSArray *LoadUpcoming(void) {
+    id items = LoadCache()[@"items"];
+    return [items isKindOfClass:[NSArray class]] ? items : nil;
+}
+
+NSString *CacheAgeLabel(void) {
+    NSDictionary *c = LoadCache();
+    if (!c) return @"no data";
+    NSDate *gen = nil;
+    id g = c[@"generated"];
+    if ([g isKindOfClass:[NSString class]]) gen = [ISOFormatter() dateFromString:g];
+    if (!gen) return @"";
+    NSTimeInterval age = -[gen timeIntervalSinceNow];
+    if (age < 5400) return @"";
+    if (age < 86400) return [NSString stringWithFormat:@"%dh ago", (int)(age / 3600)];
+    return [NSString stringWithFormat:@"%dd ago", (int)(age / 86400)];
+}
+
+NSDate *ParseISO(NSString *s) {
+    static NSISO8601DateFormatter *plain, *fractional;
+    static dispatch_once_t once;
+    dispatch_once(&once, ^{
+        plain = [[NSISO8601DateFormatter alloc] init];
+        fractional = [[NSISO8601DateFormatter alloc] init];
+        fractional.formatOptions = NSISO8601DateFormatWithInternetDateTime
+                                 | NSISO8601DateFormatWithFractionalSeconds;
+    });
+    if (![s isKindOfClass:[NSString class]]) return nil;
+    NSDate *d = [plain dateFromString:s];
+    return d ?: [fractional dateFromString:s];
+}
+
+NSString *DueLabel(NSCalendar *cal, NSDate *due) {
+    if (!due) return @"";
+    NSDate *a, *b;
+    [cal rangeOfUnit:NSCalendarUnitDay startDate:&a interval:NULL forDate:[NSDate date]];
+    [cal rangeOfUnit:NSCalendarUnitDay startDate:&b interval:NULL forDate:due];
+    NSInteger days = [[cal components:NSCalendarUnitDay fromDate:a toDate:b options:0] day];
+
+    NSDateComponents *tc = [cal components:(NSCalendarUnitHour|NSCalendarUnitMinute)
+                                  fromDate:due];
+    NSString *clock = HHMMshort((int)tc.hour * 60 + (int)tc.minute);
+
+    if (days < 0)  return @"late";
+    if (days == 0) return [NSString stringWithFormat:@"today %@", clock];
+    if (days == 1) return [NSString stringWithFormat:@"tmr %@", clock];
+    if (days < 7)  return [NSString stringWithFormat:@"%ldd", (long)days];
+
+    static const char *mon[] = {"Jan","Feb","Mar","Apr","May","Jun",
+                                "Jul","Aug","Sep","Oct","Nov","Dec"};
+    NSDateComponents *c = [cal components:(NSCalendarUnitMonth|NSCalendarUnitDay) fromDate:due];
+    return [NSString stringWithFormat:@"%s %ld", mon[c.month - 1], (long)c.day];
+}
+
+NSString *Clip(NSString *s, NSUInteger n) {
+    s = [s stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (s.length <= n) return s;
+    return [[s substringToIndex:n - 1] stringByAppendingString:@"…"];
+}
