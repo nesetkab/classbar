@@ -584,6 +584,23 @@ static NSDate *IcsDate(NSString *tzid, NSString *value) {
     return [f dateFromString:[value substringToIndex:15]];
 }
 
+static BOOL IcsDateOnly(NSArray *parts, NSString *value) {
+    for (NSUInteger i = 1; i < parts.count; i++)
+        if ([[parts[i] uppercaseString] isEqualToString:@"VALUE=DATE"]) return YES;
+    return value.length == 8;
+}
+
+static NSDate *EndOfDay(NSDate *date) {
+    NSCalendar *cal = [NSCalendar currentCalendar];
+    NSDateComponents *c = [cal components:(NSCalendarUnitYear | NSCalendarUnitMonth |
+                                           NSCalendarUnitDay)
+                                 fromDate:date];
+    c.hour = 23;
+    c.minute = 59;
+    c.second = 59;
+    return [cal dateFromComponents:c] ?: date;
+}
+
 static NSString *FirstGroup(NSString *text, NSString *pattern) {
     if (!text.length) return nil;
     NSRegularExpression *re = [NSRegularExpression regularExpressionWithPattern:pattern
@@ -650,8 +667,13 @@ static NSArray *IcsEvents(NSString *text) {
             for (NSUInteger i = 1; i < parts.count; i++)
                 if ([[parts[i] uppercaseString] hasPrefix:@"TZID="])
                     tzid = [parts[i] substringFromIndex:5];
-            NSDate *d = IcsDate(tzid, [value stringByTrimmingCharactersInSet:ws]);
-            if (d) event[name] = d;
+            NSString *raw = [value stringByTrimmingCharactersInSet:ws];
+            NSDate *d = IcsDate(tzid, raw);
+            if (d) {
+                event[name] = d;
+                if (IcsDateOnly(parts, raw))
+                    event[[name stringByAppendingString:@"-DATEONLY"]] = @YES;
+            }
         } else if ([name isEqualToString:@"SUMMARY"] ||
                    [name isEqualToString:@"LOCATION"] ||
                    [name isEqualToString:@"UID"] ||
@@ -668,8 +690,11 @@ static NSArray *cb_ics_items(NSString *text, NSString *canvasHome) {
     NSMutableArray *items = [NSMutableArray array];
     for (NSDictionary *e in IcsEvents(text)) {
         NSString *summary = e[@"SUMMARY"];
-        NSDate *due = e[@"DTSTART"] ?: e[@"DTEND"];
+        NSString *key = e[@"DTSTART"] ? @"DTSTART" : @"DTEND";
+        NSDate *due = e[key];
         if (!summary.length || !due) continue;
+        if ([e[[key stringByAppendingString:@"-DATEONLY"]] boolValue])
+            due = EndOfDay(due);
 
         NSString *uid = e[@"UID"] ?: @"";
         NSString *url = e[@"URL"] ?: @"";
@@ -1999,25 +2024,30 @@ int main(int argc, char **argv) {
             @"DTSTART;VALUE=DATE:20260909",
             @"SUMMARY:Reading response\\, part one [ENGW 1111]",
             @"END:VEVENT",
+            @"BEGIN:VEVENT",
+            @"UID:event-assignment-2@example.instructure.com",
+            @"DTSTART;VALUE=DATE;VALUE=DATE:20260911",
+            @"SUMMARY:Due at end of day [ENGW 1111]",
+            @"END:VEVENT",
             @"END:VCALENDAR",
         ] componentsJoinedByString:@"\r\n"];
 
         NSArray *parsed = cb_ics_items(ics, @"https://example.instructure.com/");
         struct { const char *label; BOOL ok; } icsChecks[] = {
-            { "calendar events are skipped",  parsed.count == 2 },
-            { "sorted by due date",           parsed.count == 2 &&
+            { "calendar events are skipped",  parsed.count == 3 },
+            { "sorted by due date",           parsed.count == 3 &&
                   [parsed[0][@"name"] hasPrefix:@"Reading response"] },
-            { "folded summary is rejoined",   parsed.count == 2 &&
+            { "folded summary is rejoined",   parsed.count == 3 &&
                   [parsed[1][@"name"] isEqualToString:
                       @"Week 2 - Upload Poems to be Workshopped"] },
-            { "course is split off",          parsed.count == 2 &&
+            { "course is split off",          parsed.count == 3 &&
                   [parsed[1][@"course"] isEqualToString:@"CRWT 1170 Intro to Poetry"] },
-            { "escapes are decoded",          parsed.count == 2 &&
+            { "escapes are decoded",          parsed.count == 3 &&
                   [parsed[0][@"name"] isEqualToString:@"Reading response, part one"] },
-            { "direct assignment url",        parsed.count == 2 &&
+            { "direct assignment url",        parsed.count == 3 &&
                   [parsed[1][@"url"] isEqualToString:
                       @"https://example.instructure.com/courses/260574/assignments/3409619"] },
-            { "utc due time converted",       parsed.count == 2 &&
+            { "utc due time converted",       parsed.count == 3 &&
                   [ISOFormatter() dateFromString:parsed[1][@"due"]] != nil },
         };
         for (size_t i = 0; i < sizeof(icsChecks) / sizeof(icsChecks[0]); i++) {
@@ -2025,14 +2055,24 @@ int main(int argc, char **argv) {
             printf("  %-4s %s\n", icsChecks[i].ok ? "ok" : "FAIL", icsChecks[i].label);
         }
 
+        NSDictionary *endOfDay = nil;
+        for (NSDictionary *a in parsed)
+            if ([a[@"name"] isEqualToString:@"Due at end of day"]) endOfDay = a;
+        NSDate *eod = endOfDay ? [ISOFormatter() dateFromString:endOfDay[@"due"]] : nil;
+        NSDateComponents *eodParts = eod ? [[NSCalendar currentCalendar]
+            components:(NSCalendarUnitHour | NSCalendarUnitMinute) fromDate:eod] : nil;
+        BOOL eodOK = eodParts && eodParts.hour == 23 && eodParts.minute == 59;
+        if (!eodOK) fails++;
+        printf("  %-4s date-only due time lands at 23:59 local\n", eodOK ? "ok" : "FAIL");
+
         NSDate *anchor = [ISOFormatter() dateFromString:@"2026-09-11T00:00:00Z"];
-        BOOL windowOK = cb_ics_window(parsed, anchor, 14, 21, 25).count == 2 &&
-                        cb_ics_window(parsed, anchor, 0, 21, 25).count == 1 &&
+        BOOL windowOK = cb_ics_window(parsed, anchor, 14, 21, 25).count == 3 &&
+                        cb_ics_window(parsed, anchor, 0, 21, 25).count == 2 &&
                         cb_ics_window(parsed, anchor, 14, 21, 1).count == 1;
         if (!windowOK) fails++;
         printf("  %-4s window trims by age, horizon, and cap\n", windowOK ? "ok" : "FAIL");
 
-        BOOL pastOK = cb_ics_window(parsed, anchor, 0, 21, 25).count == 1;
+        BOOL pastOK = cb_ics_window(parsed, anchor, 0, 21, 25).count == 2;
         if (!pastOK) fails++;
         printf("  %-4s zero lookback drops past due work\n", pastOK ? "ok" : "FAIL");
 
