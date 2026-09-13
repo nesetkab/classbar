@@ -150,6 +150,22 @@ static NSString *cb_next_tip(Schedule *s, int day) {
     return @"";
 }
 
+static NSString *cb_next_day_tip(Schedule *s, int day) {
+    for (int k = 1; k <= 7; k++) {
+        int nd = (day + k) % 7;
+        NSArray *list = s.byDay[nd];
+        if (!list.count) continue;
+        NSMutableString *t = [NSMutableString stringWithFormat:@"Next: %s", kDayName[nd]];
+        for (NSDictionary *c in list) {
+            [t appendFormat:@"\n%@  %@",
+                HHMMshort([c[@"start"] intValue]), c[@"name"]];
+            if ([c[@"room"] length]) [t appendFormat:@" · %@", c[@"room"]];
+        }
+        return t;
+    }
+    return @"";
+}
+
 static NSDictionary *cb_done(Schedule *s, int day) {
     NSMutableDictionary *m = [cb_notice(@"done for the day! :3", @"") mutableCopy];
     m[@"tip"] = cb_next_tip(s, day);
@@ -163,6 +179,16 @@ static NSArray *cb_series(Schedule *s, int ymd, int mins, int day, int count) {
         return @[cb_notice(s.loadError, @"Add one to Application Support/classbar")];
     if (ymd < s.termStart) return @[cb_notice(@"Term hasn't started", s.beforeLabel)];
     if (ymd > s.termEnd)   return @[cb_notice(@"Term is over", @"")];
+
+    if (![s.byDay[day] count]) {
+        NSString *tip = cb_next_day_tip(s, day);
+        if (tip.length) {
+            NSMutableDictionary *m = [cb_notice(@"no classes today!", @"") mutableCopy];
+            m[@"tip"] = tip;
+            m[@"done"] = @YES;
+            return @[m];
+        }
+    }
 
     int d = day, after = mins, guard = 0;
     BOOL checkNow = YES;
@@ -1550,7 +1576,15 @@ static NSDate *DateFromYMD(int ymd) {
     int day  = (int)p.weekday - 2;
     if (day < 0) day = 6;
 
-    NSArray *up = LoadUpcoming();
+    NSDate *now = [NSDate date];
+    NSMutableArray *pending = [NSMutableArray array];
+    for (NSDictionary *a in LoadUpcoming()) {
+        if (![a isKindOfClass:[NSDictionary class]]) continue;
+        NSDate *due = ParseISO(a[@"due"]);
+        if (due && [due compare:now] == NSOrderedAscending) continue;
+        [pending addObject:a];
+    }
+    NSArray *up = pending;
     if ((int)up.count > self.schedule.assignmentCap)
         up = [up subarrayWithRange:NSMakeRange(0, (NSUInteger)self.schedule.assignmentCap)];
 
@@ -1736,7 +1770,7 @@ static NSDate *DateFromYMD(int ymd) {
         NSString *body = (data && !err && code < 400)
             ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
         NSArray *items = body ? cb_ics_window(cb_ics_items(body, home),
-                                              [NSDate date], 14, 21,
+                                              [NSDate date], 0, 21,
                                               kCacheAssignmentCap)
                               : nil;
         dispatch_async(dispatch_get_main_queue(), ^{
@@ -1846,7 +1880,7 @@ int main(int argc, char **argv) {
                                                           error:NULL];
             if (!text) { printf("cannot read %s\n", argv[1]); return 1; }
             NSArray *all = cb_ics_items(text, gSched.canvasHome);
-            NSArray *kept = cb_ics_window(all, [NSDate date], 14, 21, kCacheAssignmentCap);
+            NSArray *kept = cb_ics_window(all, [NSDate date], 0, 21, kCacheAssignmentCap);
             printf("%s\n  %lu assignments, %lu in window\n", argv[1],
                    (unsigned long)all.count, (unsigned long)kept.count);
             NSCalendar *c = [NSCalendar currentCalendar];
@@ -1879,10 +1913,10 @@ int main(int argc, char **argv) {
         T("Mon 4:30 (CRWT ended)",    20260914, 990,  0, "Cornerstone 1",   "4:35p • in 5m");
         T("Mon 4:35 (Cornerstone)",   20260914, 995,  0, "Cornerstone 1",   "4:35p • 1h 5m left");
         T("Mon 6:00 PM (day over)",   20260914, 1080, 0, "done for the day! :3", "");
-        T("Tue -> Wed",               20260915, 700,  1, "Gen Chem",        "Wed 9:15a");
+        T("Tue is free",              20260915, 700,  1, "no classes today!", "");
         T("Thu 6:00 PM (day over)",   20260917, 1080, 3, "done for the day! :3", "");
-        T("Fri -> Mon",               20260918, 700,  4, "Gen Chem",        "Mon 9:15a");
-        T("Sun -> Mon",               20260920, 700,  6, "Gen Chem",        "Mon 9:15a");
+        T("Fri is free",              20260918, 700,  4, "no classes today!", "");
+        T("Sun is free",              20260920, 700,  6, "no classes today!", "");
         T("Thu 10:30 -> Calculus",    20260917, 630,  3, "Calculus 2",      "1:35p • in 3h 5m");
         T("after term",               20261221, 600,  0, "Term is over",    "");
 
@@ -1890,7 +1924,7 @@ int main(int argc, char **argv) {
         T2("Mon 9:30 in Gen Chem",    20260914, 570,  0, "Gen Chem", "CHEM Recitation");
         T2("Mon 4:00 in CRWT",        20260914, 960,  0, "Creative Writing", "Cornerstone 1");
         T2("Thu evening is done",     20260917, 1080, 3, "done for the day! :3", "");
-        T2("Tue (free) -> Wed pair",  20260915, 700,  1, "Gen Chem", "Calculus 2");
+        T2("Tue free shows one card", 20260915, 700,  1, "no classes today!", "");
         T2("Mon 5:00 last class",     20260914, 1020, 0, "Cornerstone 1", "done for the day! :3");
         T2("Mon 4:30 before last",    20260914, 990,  0, "Cornerstone 1", "done for the day! :3");
         T2("Thu 5:00 last class",     20260917, 1020, 3, "Cornerstone 1", "done for the day! :3");
@@ -1901,6 +1935,24 @@ int main(int argc, char **argv) {
                      [tip containsString:@"Wed 9:15a"];
         printf("  %-4s done card names the next class\n", tipOK ? "ok" : "FAIL");
         if (!tipOK) { fails++; printf("       got [%s]\n", tip.UTF8String); }
+
+        printf("\nfree day card\n");
+        NSArray *freeDay = cb_series(gSched, 20260915, 700, 1, 2);
+        NSString *freeTip = freeDay.count ? freeDay[0][@"tip"] : @"";
+        struct { const char *label; BOOL ok; } freeChecks[] = {
+            { "one card, not tomorrow's class", freeDay.count == 1 },
+            { "names the next class day",       [freeTip hasPrefix:@"Next: Wednesday"] },
+            { "lists every class that day",     [freeTip containsString:@"9:15a  Gen Chem"] &&
+                  [freeTip containsString:@"1:35p  Calculus 2"] &&
+                  [freeTip containsString:@"4:35p  Cornerstone 1"] },
+            { "carries rooms",                  [freeTip containsString:@"Shillman Hall 105"] },
+            { "skips the next free day",        [cb_series(gSched, 20260918, 700, 4, 1)[0][@"tip"]
+                  hasPrefix:@"Next: Monday"] },
+        };
+        for (size_t i = 0; i < sizeof(freeChecks) / sizeof(freeChecks[0]); i++) {
+            if (!freeChecks[i].ok) fails++;
+            printf("  %-4s %s\n", freeChecks[i].ok ? "ok" : "FAIL", freeChecks[i].label);
+        }
 
         printf("\nzoom + canvas links\n");
         NSArray *crwt = cb_series(gSched, 20260914, 960, 0, 1);
@@ -1979,6 +2031,10 @@ int main(int argc, char **argv) {
                         cb_ics_window(parsed, anchor, 14, 21, 1).count == 1;
         if (!windowOK) fails++;
         printf("  %-4s window trims by age, horizon, and cap\n", windowOK ? "ok" : "FAIL");
+
+        BOOL pastOK = cb_ics_window(parsed, anchor, 0, 21, 25).count == 1;
+        if (!pastOK) fails++;
+        printf("  %-4s zero lookback drops past due work\n", pastOK ? "ok" : "FAIL");
 
         printf("\nday tokens\n");
         struct { const char *in; const char *want; } dayCases[] = {
