@@ -18,6 +18,7 @@ static const int kMinAssignmentCap = 1;
 static const int kMaxAssignmentCap = 100;
 static const int kCacheAssignmentCap = 200;
 static const NSTimeInterval kRefreshFloorSeconds = 10;
+static const CGFloat kDueColumnGap = 12.0;
 
 static int ClampCap(int n) {
     if (n < kMinAssignmentCap) return kMinAssignmentCap;
@@ -136,19 +137,21 @@ static NSDictionary *cb_notice(NSString *title, NSString *when) {
               @"notice": @YES };
 }
 
-static NSString *cb_next_tip(Schedule *s, int day) {
-    for (int k = 1; k <= 7; k++) {
-        int nd = (day + k) % 7;
-        NSArray *list = s.byDay[nd];
-        if (!list.count) continue;
-        NSDictionary *c = list[0];
-        NSMutableString *t = [NSMutableString stringWithFormat:@"Next: %@", c[@"name"]];
-        if ([c[@"code"] length]) [t appendFormat:@" (%@)", c[@"code"]];
-        [t appendFormat:@"\n%.3s %@", kDayName[nd], HHMMshort([c[@"start"] intValue])];
-        if ([c[@"room"] length]) [t appendFormat:@"\n%@", c[@"room"]];
-        return t;
-    }
-    return @"";
+static NSString *TipText(NSString *heading, NSArray *lines) {
+    NSMutableArray *out = [NSMutableArray array];
+    if (heading.length) [out addObject:heading];
+    for (NSString *l in lines) if (l.length) [out addObject:l];
+    return [out componentsJoinedByString:@"\n"];
+}
+
+static NSString *TipJoin(NSArray *parts) {
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSString *p in parts) if (p.length) [out addObject:p];
+    return [out componentsJoinedByString:@" · "];
+}
+
+static NSString *TipClassLine(NSDictionary *c) {
+    return TipJoin(@[HHMMshort([c[@"start"] intValue]), c[@"name"], c[@"room"] ?: @""]);
 }
 
 static NSString *cb_next_day_tip(Schedule *s, int day) {
@@ -156,20 +159,16 @@ static NSString *cb_next_day_tip(Schedule *s, int day) {
         int nd = (day + k) % 7;
         NSArray *list = s.byDay[nd];
         if (!list.count) continue;
-        NSMutableString *t = [NSMutableString stringWithFormat:@"Next: %s", kDayName[nd]];
-        for (NSDictionary *c in list) {
-            [t appendFormat:@"\n%@  %@",
-                HHMMshort([c[@"start"] intValue]), c[@"name"]];
-            if ([c[@"room"] length]) [t appendFormat:@" · %@", c[@"room"]];
-        }
-        return t;
+        NSMutableArray *lines = [NSMutableArray array];
+        for (NSDictionary *c in list) [lines addObject:TipClassLine(c)];
+        return TipText([NSString stringWithFormat:@"Next: %s", kDayName[nd]], lines);
     }
     return @"";
 }
 
 static NSDictionary *cb_done(Schedule *s, int day) {
     NSMutableDictionary *m = [cb_notice(@"done for the day! :3", @"") mutableCopy];
-    m[@"tip"] = cb_next_tip(s, day);
+    m[@"tip"] = cb_next_day_tip(s, day);
     m[@"done"] = @YES;
     return m;
 }
@@ -347,22 +346,28 @@ static void TipShow(NSString *text, NSRect anchor) {
     [gTipPanel orderFrontRegardless];
 }
 
-@interface CardView : NSView
+@interface HoverTipView : NSView
+@property (copy)   NSString *tip;
+@property (strong) NSTimer *tipTimer;
+@property (assign) BOOL tipShown;
+@property (assign) BOOL hovered;
+- (void)cancelTip;
+- (void)scheduleTip;
+- (void)syncHoverAt:(NSPoint)pt;
+@end
+
+@interface CardView : HoverTipView
 @property (copy) NSString *title;
 @property (copy) NSString *code;
 @property (copy) NSString *when;
 @property (copy) NSString *room;
 @property (copy) NSString *link;
 @property (copy) NSString *zoom;
-@property (copy) NSString *tip;
 @property (strong) NSColor *bg;
-@property (strong) NSTimer *tipTimer;
-@property (assign) BOOL tipShown;
-@property (assign) BOOL hovered;
 @property (assign) BOOL overPill;
 @end
 
-@implementation CardView
+@implementation HoverTipView
 
 - (void)updateTrackingAreas {
     [super updateTrackingAreas];
@@ -383,10 +388,10 @@ static void TipShow(NSString *text, NSRect anchor) {
 
 - (void)scheduleTip {
     if (!self.tip.length || self.tipTimer || self.tipShown) return;
-    __weak CardView *weak = self;
+    __weak HoverTipView *weak = self;
     self.tipTimer = [NSTimer timerWithTimeInterval:0.45 repeats:NO
                                              block:^(NSTimer *t __unused) {
-        CardView *me = weak;
+        HoverTipView *me = weak;
         me.tipTimer = nil;
         if (!me.window || !me.hovered) return;
         me.tipShown = YES;
@@ -396,6 +401,34 @@ static void TipShow(NSString *text, NSRect anchor) {
     [[NSRunLoop currentRunLoop] addTimer:self.tipTimer forMode:NSRunLoopCommonModes];
 }
 
+- (void)syncHoverAt:(NSPoint)pt __unused {
+    if (!self.hovered) { self.hovered = YES; self.needsDisplay = YES; }
+    [self scheduleTip];
+}
+
+- (void)mouseMoved:(NSEvent *)e {
+    [self syncHoverAt:[self convertPoint:e.locationInWindow fromView:nil]];
+}
+
+- (void)mouseEntered:(NSEvent *)e {
+    [self syncHoverAt:[self convertPoint:e.locationInWindow fromView:nil]];
+}
+
+- (void)mouseExited:(NSEvent *)e __unused {
+    self.hovered = NO;
+    self.needsDisplay = YES;
+    [self cancelTip];
+}
+
+- (void)viewDidMoveToWindow {
+    [super viewDidMoveToWindow];
+    if (!self.window) { self.hovered = NO; [self cancelTip]; }
+}
+
+@end
+
+@implementation CardView
+
 - (void)syncHoverAt:(NSPoint)pt {
     BOOL onPill = self.zoom.length && NSPointInRect(pt, [self pillRect]);
     if (onPill != self.overPill || !self.hovered) {
@@ -404,10 +437,6 @@ static void TipShow(NSString *text, NSRect anchor) {
         self.needsDisplay = YES;
     }
     [self scheduleTip];
-}
-
-- (void)mouseMoved:(NSEvent *)e {
-    [self syncHoverAt:[self convertPoint:e.locationInWindow fromView:nil]];
 }
 
 - (NSRect)pillRect {
@@ -424,18 +453,14 @@ static void TipShow(NSString *text, NSRect anchor) {
     return NSMakeRect(x, y, w, h);
 }
 
-- (void)mouseEntered:(NSEvent *)e {
-    [self syncHoverAt:[self convertPoint:e.locationInWindow fromView:nil]];
-}
-
 - (void)mouseExited:(NSEvent *)e {
-    self.hovered = NO; self.overPill = NO; self.needsDisplay = YES;
-    [self cancelTip];
+    self.overPill = NO;
+    [super mouseExited:e];
 }
 
 - (void)viewDidMoveToWindow {
     [super viewDidMoveToWindow];
-    if (!self.window) { self.hovered = NO; self.overPill = NO; [self cancelTip]; }
+    if (!self.window) self.overPill = NO;
 }
 
 - (void)mouseUp:(NSEvent *)e {
@@ -521,6 +546,84 @@ static void TipShow(NSString *text, NSRect anchor) {
 }
 
 @end
+
+@interface AssignmentView : HoverTipView
+@property (copy) NSString *due;
+@property (copy) NSString *name;
+@property (copy) NSString *link;
+@property (assign) BOOL late;
+@property (assign) CGFloat dueWidth;
+@end
+
+static NSFont *DueFont(BOOL late) {
+    return [NSFont monospacedDigitSystemFontOfSize:11
+                                            weight:late ? NSFontWeightBold
+                                                        : NSFontWeightMedium];
+}
+
+static NSFont *NameFont(void) {
+    return [NSFont systemFontOfSize:12];
+}
+
+@implementation AssignmentView
+
+- (NSRect)rowRect {
+    return NSMakeRect(5, 1, NSWidth(self.bounds) - 10, NSHeight(self.bounds) - 2);
+}
+
+- (void)mouseUp:(NSEvent *)e __unused {
+    [self cancelTip];
+    [self.enclosingMenuItem.menu cancelTracking];
+    if (!self.link.length) return;
+    NSURL *u = [NSURL URLWithString:self.link];
+    if (u) [[NSWorkspace sharedWorkspace] openURL:u];
+}
+
+- (void)drawRect:(NSRect)dirty __unused {
+    if (self.hovered) {
+        NSBezierPath *p = [NSBezierPath bezierPathWithRoundedRect:[self rowRect]
+                                                          xRadius:5 yRadius:5];
+        [[NSColor selectedContentBackgroundColor] setFill];
+        [p fill];
+    }
+
+    NSColor *dueColor = self.hovered
+        ? [[NSColor alternateSelectedControlTextColor] colorWithAlphaComponent:0.8]
+        : (self.late ? [NSColor systemRedColor] : [NSColor secondaryLabelColor]);
+    NSDictionary *dueAttr = @{
+        NSFontAttributeName: DueFont(self.late),
+        NSForegroundColorAttributeName: dueColor
+    };
+    NSDictionary *nameAttr = @{
+        NSFontAttributeName: NameFont(),
+        NSForegroundColorAttributeName: self.hovered
+            ? [NSColor alternateSelectedControlTextColor] : [NSColor labelColor]
+    };
+
+    NSSize ds = [self.due sizeWithAttributes:dueAttr];
+    NSSize ns = [self.name sizeWithAttributes:nameAttr];
+    CGFloat x = NSMinX([self rowRect]) + 9;
+    [self.due drawAtPoint:NSMakePoint(x, NSMidY(self.bounds) - ds.height / 2)
+           withAttributes:dueAttr];
+    [self.name drawAtPoint:NSMakePoint(x + self.dueWidth + kDueColumnGap,
+                                       NSMidY(self.bounds) - ns.height / 2)
+            withAttributes:nameAttr];
+}
+
+@end
+
+static NSMenuItem *AssignmentItem(NSString *due, NSString *name, NSString *link,
+                                  NSString *tip, BOOL late, CGFloat dueWidth,
+                                  CGFloat width) {
+    AssignmentView *v = [[AssignmentView alloc]
+        initWithFrame:NSMakeRect(0, 0, width, 22)];
+    v.autoresizingMask = NSViewWidthSizable;
+    v.due = due; v.name = name; v.link = link; v.tip = tip; v.late = late;
+    v.dueWidth = dueWidth;
+    NSMenuItem *i = [[NSMenuItem alloc] init];
+    i.view = v;
+    return i;
+}
 
 static NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *room,
                             NSString *link, NSString *zoom, NSString *tip,
@@ -1625,18 +1728,20 @@ static NSDate *DateFromYMD(int ymd) {
     if ((int)up.count > self.schedule.assignmentCap)
         up = [up subarrayWithRange:NSMakeRange(0, (NSUInteger)self.schedule.assignmentCap)];
 
-    NSDictionary *rowFont = @{ NSFontAttributeName: [NSFont systemFontOfSize:12] };
-    CGFloat rowMax = 0;
+    NSDictionary *rowFont = @{ NSFontAttributeName: NameFont() };
+    CGFloat nameMax = 0, dueMax = 0;
     for (NSDictionary *a in up) {
         if (![a isKindOfClass:[NSDictionary class]]) continue;
         NSString *nm = a[@"name"];
         if (![nm isKindOfClass:[NSString class]]) continue;
-        NSString *label = [NSString stringWithFormat:@"%@   %@",
-                           DueLabel(cal, ParseISO(a[@"due"])), Clip(nm, 36)];
-        CGFloat w = [label sizeWithAttributes:rowFont].width;
-        if (w > rowMax) rowMax = w;
+        NSString *dl = DueLabel(cal, ParseISO(a[@"due"]));
+        CGFloat dw = [dl sizeWithAttributes:@{ NSFontAttributeName: DueFont(YES) }].width;
+        if (dw > dueMax) dueMax = dw;
+        CGFloat nw = [Clip(nm, 36) sizeWithAttributes:rowFont].width;
+        if (nw > nameMax) nameMax = nw;
     }
-    CGFloat cardWidth = MAX(292.0, ceil(rowMax) + 26.0);
+    CGFloat dueWidth = ceil(dueMax);
+    CGFloat cardWidth = MAX(292.0, dueWidth + kDueColumnGap + ceil(nameMax) + 26.0);
 
     NSArray *series = cb_series(self.schedule, ymd, mins, day, 2);
     {
@@ -1663,35 +1768,20 @@ static NSDate *DateFromYMD(int ymd) {
             NSString *dl = DueLabel(cal, due);
             BOOL late = [dl isEqualToString:@"late"];
 
-            NSMenuItem *it = [[NSMenuItem alloc] initWithTitle:nm
-                                                        action:@selector(openItem:)
-                                                 keyEquivalent:@""];
-            NSString *label = [NSString stringWithFormat:@"%@   %@", dl, Clip(nm, 36)];
-            NSMutableAttributedString *at = [[NSMutableAttributedString alloc]
-                initWithString:label attributes:@{
-                    NSFontAttributeName: [NSFont systemFontOfSize:12]
-                }];
-            [at addAttributes:@{
-                NSFontAttributeName: [NSFont monospacedDigitSystemFontOfSize:11
-                                          weight:late ? NSFontWeightBold : NSFontWeightMedium],
-                NSForegroundColorAttributeName: late ? [NSColor systemRedColor]
-                                                     : [NSColor secondaryLabelColor]
-            } range:NSMakeRange(0, dl.length)];
-            it.attributedTitle = at;
-            it.target = self;
-            it.enabled = [ur isKindOfClass:[NSString class]];
-            it.representedObject = ur;
             NSString *full = [nm stringByTrimmingCharactersInSet:
                 [NSCharacterSet whitespaceAndNewlineCharacterSet]];
-            NSString *tip = [cs isKindOfClass:[NSString class]]
-                ? [NSString stringWithFormat:@"%@\n%@", cs, full] : full;
+            NSString *whenLine = @"";
             if (due) {
                 NSDateFormatter *df = [[NSDateFormatter alloc] init];
-                df.dateFormat = @"EEE MMM d, h:mm a";
-                tip = [tip stringByAppendingFormat:@"\nDue %@", [df stringFromDate:due]];
+                df.dateFormat = @"EEE MMM d · h:mm a";
+                whenLine = [NSString stringWithFormat:@"Due %@", [df stringFromDate:due]];
             }
-            it.toolTip = tip;
-            [menu addItem:it];
+            NSString *tip = TipText(full,
+                @[[cs isKindOfClass:[NSString class]] ? cs : @"", whenLine]);
+
+            [menu addItem:AssignmentItem(dl, Clip(nm, 36),
+                                         [ur isKindOfClass:[NSString class]] ? ur : @"",
+                                         tip, late, dueWidth, cardWidth)];
         }
     }
 
@@ -1733,13 +1823,6 @@ static NSDate *DateFromYMD(int ymd) {
 
 - (void)openCanvas {
     NSURL *u = [NSURL URLWithString:self.link];
-    if (u) [[NSWorkspace sharedWorkspace] openURL:u];
-}
-
-- (void)openItem:(NSMenuItem *)sender {
-    NSString *s = sender.representedObject;
-    if (![s isKindOfClass:[NSString class]]) return;
-    NSURL *u = [NSURL URLWithString:s];
     if (u) [[NSWorkspace sharedWorkspace] openURL:u];
 }
 
@@ -1885,6 +1968,51 @@ int main(int argc, char **argv) {
         [NSApplication sharedApplication];
         gSched = [Schedule loadFromDisk];
 
+        if (argc > 2 && strcmp(argv[1], "--rows") == 0) {
+            NSArray *rows = @[ @[@"today 11:59p", @"Chapter 5: Problem Definition", @0],
+                               @[@"tmr 9:15a", @"Reading guide 3.8 - 3.12", @0],
+                               @[@"2d", @"Week 2 - Upload your responses to poems", @0],
+                               @[@"late", @"Welcome Survey Confirmation", @1] ];
+            CGFloat w = 320, h = 22, pad = 10, dueWidth = 0;
+            for (NSArray *r in rows) {
+                CGFloat dw = [r[0] sizeWithAttributes:
+                    @{ NSFontAttributeName: DueFont(YES) }].width;
+                if (dw > dueWidth) dueWidth = ceil(dw);
+            }
+            NSImage *sheet = [[NSImage alloc]
+                initWithSize:NSMakeSize(w + pad * 2, (h + 4) * rows.count + pad * 2 + 24)];
+            [sheet lockFocus];
+            [[NSColor colorWithWhite:0.13 alpha:1.0] setFill];
+            NSRectFill(NSMakeRect(0, 0, sheet.size.width, sheet.size.height));
+            for (NSUInteger i = 0; i < rows.count; i++) {
+                NSArray *r = rows[i];
+                AssignmentView *v = [[AssignmentView alloc]
+                    initWithFrame:NSMakeRect(0, 0, w, h)];
+                v.due = r[0];
+                v.name = r[1];
+                v.late = [r[2] boolValue];
+                v.dueWidth = dueWidth;
+                v.hovered = (i == 1);
+                v.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
+                NSRect slot = NSMakeRect(pad,
+                                         sheet.size.height - pad - (h + 4) * (i + 1), w, h);
+                [NSGraphicsContext saveGraphicsState];
+                NSAffineTransform *t = [NSAffineTransform transform];
+                [t translateXBy:NSMinX(slot) yBy:NSMinY(slot)];
+                [t concat];
+                [v displayRectIgnoringOpacity:v.bounds
+                                    inContext:[NSGraphicsContext currentContext]];
+                [NSGraphicsContext restoreGraphicsState];
+            }
+            [sheet unlockFocus];
+            NSBitmapImageRep *out = [[NSBitmapImageRep alloc]
+                initWithData:[sheet TIFFRepresentation]];
+            BOOL ok = [[out representationUsingType:NSBitmapImageFileTypePNG properties:@{}]
+                writeToFile:@(argv[2]) atomically:YES];
+            printf("%s %s (row 2 hovered)\n", ok ? "wrote" : "failed", argv[2]);
+            return ok ? 0 : 1;
+        }
+
         if (argc > 2 && strcmp(argv[1], "--footer") == 0) {
             NSArray *states = @[@"idle", @"quit", @"refresh", @"gear"];
             CGFloat w = 300, h = 26, pad = 12;
@@ -2009,9 +2137,9 @@ int main(int argc, char **argv) {
 
         printf("\ndone-for-the-day tip\n");
         NSString *tip = cb_series(gSched, 20260914, 1080, 0, 1)[0][@"tip"];
-        BOOL tipOK = [tip hasPrefix:@"Next: Gen Chem"] &&
-                     [tip containsString:@"Wed 9:15a"];
-        printf("  %-4s done card names the next class\n", tipOK ? "ok" : "FAIL");
+        NSString *freeCardTip = cb_series(gSched, 20260915, 700, 1, 1)[0][@"tip"];
+        BOOL tipOK = [tip isEqualToString:freeCardTip];
+        printf("  %-4s done card and free day card share one tip\n", tipOK ? "ok" : "FAIL");
         if (!tipOK) { fails++; printf("       got [%s]\n", tip.UTF8String); }
 
         printf("\nfree day card\n");
@@ -2020,9 +2148,9 @@ int main(int argc, char **argv) {
         struct { const char *label; BOOL ok; } freeChecks[] = {
             { "one card, not tomorrow's class", freeDay.count == 1 },
             { "names the next class day",       [freeTip hasPrefix:@"Next: Wednesday"] },
-            { "lists every class that day",     [freeTip containsString:@"9:15a  Gen Chem"] &&
-                  [freeTip containsString:@"1:35p  Calculus 2"] &&
-                  [freeTip containsString:@"4:35p  Cornerstone 1"] },
+            { "lists every class that day",     [freeTip containsString:@"9:15a · Gen Chem"] &&
+                  [freeTip containsString:@"1:35p · Calculus 2"] &&
+                  [freeTip containsString:@"4:35p · Cornerstone 1"] },
             { "carries rooms",                  [freeTip containsString:@"Shillman Hall 105"] },
             { "skips the next free day",        [cb_series(gSched, 20260918, 700, 4, 1)[0][@"tip"]
                   hasPrefix:@"Next: Monday"] },
@@ -2030,6 +2158,32 @@ int main(int argc, char **argv) {
         for (size_t i = 0; i < sizeof(freeChecks) / sizeof(freeChecks[0]); i++) {
             if (!freeChecks[i].ok) fails++;
             printf("  %-4s %s\n", freeChecks[i].ok ? "ok" : "FAIL", freeChecks[i].label);
+        }
+
+        printf("\ntooltip shape\n");
+        NSString *classTip = cb_series(gSched, 20260915, 700, 1, 1)[0][@"tip"];
+        NSString *itemTip = TipText(@"Chapter 5: Problem Definition",
+                                    @[@"GE1501.MERGED.202710",
+                                      @"Due Sun Sep 13 · 11:59 PM"]);
+        NSString *sparse = TipText(@"Just a heading", @[@"", @""]);
+        struct { const char *label; BOOL ok; } shapeChecks[] = {
+            { "heading is the first line",   [[classTip componentsSeparatedByString:@"\n"][0]
+                                                 hasPrefix:@"Next: "] &&
+                                             [[itemTip componentsSeparatedByString:@"\n"][0]
+                                                 isEqualToString:
+                                                     @"Chapter 5: Problem Definition"] },
+            { "details use one separator",   [classTip containsString:@" · "] &&
+                                             [itemTip containsString:@" · "] },
+            { "no blank lines anywhere",     ![classTip containsString:@"\n\n"] &&
+                                             ![itemTip containsString:@"\n\n"] &&
+                                             ![sparse containsString:@"\n"] },
+            { "empty parts are dropped",     [TipJoin(@[@"a", @"", @"b"])
+                                                 isEqualToString:@"a · b"] },
+            { "empty tip stays empty",       TipText(@"", @[@"", @""]).length == 0 },
+        };
+        for (size_t i = 0; i < sizeof(shapeChecks) / sizeof(shapeChecks[0]); i++) {
+            if (!shapeChecks[i].ok) fails++;
+            printf("  %-4s %s\n", shapeChecks[i].ok ? "ok" : "FAIL", shapeChecks[i].label);
         }
 
         printf("\nzoom + canvas links\n");
