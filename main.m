@@ -17,6 +17,7 @@ static const int kDefaultAssignmentCap = 25;
 static const int kMinAssignmentCap = 1;
 static const int kMaxAssignmentCap = 100;
 static const int kCacheAssignmentCap = 200;
+static const NSTimeInterval kRefreshFloorSeconds = 10;
 
 static int ClampCap(int n) {
     if (n < kMinAssignmentCap) return kMinAssignmentCap;
@@ -1585,7 +1586,7 @@ static NSDate *DateFromYMD(int ymd) {
     m.autoenablesItems = NO;
     self.status.menu = m;
 
-    [self refreshIfStale];
+    [self refreshUnlessFresh];
 }
 
 - (void)reloadScheduleIfChanged {
@@ -1707,7 +1708,7 @@ static NSDate *DateFromYMD(int ymd) {
     q.view = fv;
     [menu addItem:q];
 
-    [self refreshIfStale];
+    [self refreshUnlessFresh];
 }
 
 - (void)head:(NSMenu *)m text:(NSString *)s {
@@ -1831,10 +1832,11 @@ static NSDate *DateFromYMD(int ymd) {
     [self setFooterStatus:@"Updated"];
 }
 
-- (void)refreshIfStale {
+- (void)refreshUnlessFresh {
     if (self.fetching || !self.schedule.canvasFeed.length) return;
     NSTimeInterval stamp = [self cacheStamp];
-    if (stamp > 0 && [NSDate date].timeIntervalSince1970 - stamp < 1800) return;
+    if (stamp > 0 &&
+        [NSDate date].timeIntervalSince1970 - stamp < kRefreshFloorSeconds) return;
     [self refreshNow];
 }
 
