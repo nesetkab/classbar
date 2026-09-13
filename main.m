@@ -987,11 +987,21 @@ static NSString *Clip(NSString *s, NSUInteger n) {
 @property (assign) SEL settingsAction;
 @property (assign) BOOL overRefresh;
 @property (assign) BOOL overGear;
+@property (assign) BOOL overQuit;
 @property (assign) BOOL hovered;
 @property (copy)   NSString *status;
 @end
 
 @implementation FooterView
+
+- (NSDictionary *)quitAttributes {
+    return @{ NSFontAttributeName: [NSFont systemFontOfSize:13] };
+}
+
+- (NSRect)quitRect {
+    NSSize s = [@"Quit" sizeWithAttributes:[self quitAttributes]];
+    return NSMakeRect(5, NSMidY(self.bounds) - 11, ceil(s.width) + 18, 22);
+}
 
 - (NSRect)gearRect {
     return NSMakeRect(NSMaxX(self.bounds) - 34, NSMidY(self.bounds) - 9, 20, 18);
@@ -1015,9 +1025,12 @@ static NSString *Clip(NSString *s, NSUInteger n) {
 - (void)syncAt:(NSPoint)pt {
     BOOL refresh = NSPointInRect(pt, NSInsetRect([self refreshRect], -4, -4));
     BOOL gear = NSPointInRect(pt, NSInsetRect([self gearRect], -4, -4));
-    if (refresh != self.overRefresh || gear != self.overGear || !self.hovered) {
+    BOOL quit = NSPointInRect(pt, [self quitRect]);
+    if (refresh != self.overRefresh || gear != self.overGear ||
+        quit != self.overQuit || !self.hovered) {
         self.overRefresh = refresh;
         self.overGear = gear;
+        self.overQuit = quit;
         self.hovered = YES;
         self.needsDisplay = YES;
     }
@@ -1035,12 +1048,13 @@ static NSString *Clip(NSString *s, NSUInteger n) {
     self.hovered = NO;
     self.overRefresh = NO;
     self.overGear = NO;
+    self.overQuit = NO;
     self.needsDisplay = YES;
 }
 
 - (void)mouseUp:(NSEvent *)e {
     NSPoint pt = [self convertPoint:e.locationInWindow fromView:nil];
-    SEL sel;
+    SEL sel = NULL;
     if (NSPointInRect(pt, NSInsetRect([self refreshRect], -4, -4))) {
         sel = self.refreshAction;
     } else if (NSPointInRect(pt, NSInsetRect([self gearRect], -4, -4))) {
@@ -1048,7 +1062,7 @@ static NSString *Clip(NSString *s, NSUInteger n) {
         sel = self.settingsAction;
     } else {
         [self.enclosingMenuItem.menu cancelTracking];
-        sel = self.quitAction;
+        if (NSPointInRect(pt, [self quitRect])) sel = self.quitAction;
     }
     if (self.target && sel) ((void (*)(id, SEL))objc_msgSend)(self.target, sel);
 }
@@ -1068,24 +1082,21 @@ static NSString *Clip(NSString *s, NSUInteger n) {
 }
 
 - (void)drawRect:(NSRect)dirty {
-    BOOL quitLit = self.hovered && !self.overRefresh && !self.overGear;
+    BOOL quitLit = self.overQuit;
+    NSRect quit = [self quitRect];
 
     if (quitLit) {
-        NSRect hl = NSMakeRect(5, 2,
-                               NSMinX([self refreshRect]) - 15,
-                               NSHeight(self.bounds) - 4);
-        NSBezierPath *hp = [NSBezierPath bezierPathWithRoundedRect:hl xRadius:6 yRadius:6];
+        NSBezierPath *hp = [NSBezierPath bezierPathWithRoundedRect:quit
+                                                           xRadius:6 yRadius:6];
         [[NSColor selectedContentBackgroundColor] setFill];
         [hp fill];
     }
 
-    NSDictionary *a = @{
-        NSFontAttributeName: [NSFont systemFontOfSize:13],
-        NSForegroundColorAttributeName: quitLit ? [NSColor alternateSelectedControlTextColor]
-                                                : [NSColor labelColor]
-    };
+    NSMutableDictionary *a = [[self quitAttributes] mutableCopy];
+    a[NSForegroundColorAttributeName] = quitLit
+        ? [NSColor alternateSelectedControlTextColor] : [NSColor labelColor];
     NSSize qs = [@"Quit" sizeWithAttributes:a];
-    [@"Quit" drawAtPoint:NSMakePoint(14, NSMidY(self.bounds) - qs.height / 2)
+    [@"Quit" drawAtPoint:NSMakePoint(NSMinX(quit) + 9, NSMidY(quit) - qs.height / 2)
           withAttributes:a];
 
     if (self.status.length) {
@@ -1871,6 +1882,46 @@ int main(int argc, char **argv) {
     @autoreleasepool {
         [NSApplication sharedApplication];
         gSched = [Schedule loadFromDisk];
+
+        if (argc > 2 && strcmp(argv[1], "--footer") == 0) {
+            NSArray *states = @[@"idle", @"quit", @"refresh", @"gear"];
+            CGFloat w = 300, h = 26, pad = 12;
+            NSImage *sheet = [[NSImage alloc]
+                initWithSize:NSMakeSize(w + pad * 2,
+                                        (h + pad) * states.count + pad)];
+            [sheet lockFocus];
+            [[NSColor colorWithWhite:0.13 alpha:1.0] setFill];
+            NSRectFill(NSMakeRect(0, 0, sheet.size.width, sheet.size.height));
+            for (NSUInteger i = 0; i < states.count; i++) {
+                FooterView *f = [[FooterView alloc]
+                    initWithFrame:NSMakeRect(0, 0, w, h)];
+                f.status = @"3h ago";
+                NSString *st = states[i];
+                f.hovered = ![st isEqualToString:@"idle"];
+                f.overQuit = [st isEqualToString:@"quit"];
+                f.overRefresh = [st isEqualToString:@"refresh"];
+                f.overGear = [st isEqualToString:@"gear"];
+                f.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
+                NSRect slot = NSMakeRect(pad,
+                                         sheet.size.height - pad - (h + pad) * (i + 1),
+                                         w, h);
+                [NSGraphicsContext saveGraphicsState];
+                NSAffineTransform *shift = [NSAffineTransform transform];
+                [shift translateXBy:NSMinX(slot) yBy:NSMinY(slot)];
+                [shift concat];
+                [f displayRectIgnoringOpacity:f.bounds
+                                    inContext:[NSGraphicsContext currentContext]];
+                [NSGraphicsContext restoreGraphicsState];
+            }
+            [sheet unlockFocus];
+            NSBitmapImageRep *out = [[NSBitmapImageRep alloc]
+                initWithData:[sheet TIFFRepresentation]];
+            BOOL ok = [[out representationUsingType:NSBitmapImageFileTypePNG properties:@{}]
+                writeToFile:@(argv[2]) atomically:YES];
+            printf("%s %s (%s)\n", ok ? "wrote" : "failed", argv[2],
+                   [[states componentsJoinedByString:@", "] UTF8String]);
+            return ok ? 0 : 1;
+        }
 
         if (argc > 2 && strcmp(argv[1], "--shot") == 0) {
             SettingsWindow *sw = [[SettingsWindow alloc] init];
