@@ -10,7 +10,7 @@ static NSString *SchedulePath(void) {
 
 static NSString *CachePath(void) {
     return [NSHomeDirectory() stringByAppendingPathComponent:
-            @"Library/Caches/classbar/upcoming.json"];
+            @"Library/Caches/classbar/assignments.json"];
 }
 
 static const int kDefaultAssignmentCap = 25;
