@@ -18,6 +18,7 @@ static const int kMinAssignmentCap = 1;
 static const int kMaxAssignmentCap = 100;
 static const int kCacheAssignmentCap = 200;
 static const NSTimeInterval kRefreshFloorSeconds = 10;
+static const NSTimeInterval kStaleSeconds = 300;
 static const CGFloat kDueColumnGap = 12.0;
 
 static int ClampCap(int n) {
@@ -1711,7 +1712,7 @@ static NSDate *DateFromYMD(int ymd) {
     m.autoenablesItems = NO;
     self.status.menu = m;
 
-    [self refreshUnlessFresh];
+    [self refreshIfOlderThan:kRefreshFloorSeconds];
 }
 
 - (void)reloadScheduleIfChanged {
@@ -1822,7 +1823,7 @@ static NSDate *DateFromYMD(int ymd) {
     q.view = fv;
     [menu addItem:q];
 
-    [self refreshUnlessFresh];
+    [self refreshIfOlderThan:kStaleSeconds];
 }
 
 - (void)head:(NSMenu *)m text:(NSString *)s {
@@ -1940,11 +1941,10 @@ static NSDate *DateFromYMD(int ymd) {
     [self setFooterStatus:@"Updated"];
 }
 
-- (void)refreshUnlessFresh {
+- (void)refreshIfOlderThan:(NSTimeInterval)age {
     if (self.fetching || !self.schedule.canvasFeed.length) return;
     NSTimeInterval stamp = [self cacheStamp];
-    if (stamp > 0 &&
-        [NSDate date].timeIntervalSince1970 - stamp < kRefreshFloorSeconds) return;
+    if (stamp > 0 && [NSDate date].timeIntervalSince1970 - stamp < age) return;
     [self refreshNow];
 }
 
@@ -1955,6 +1955,7 @@ static NSDate *DateFromYMD(int ymd) {
 - (void)menuDidClose:(NSMenu *)menu __unused {
     self.menuOpen = NO;
     TipHide();
+    [self refreshIfOlderThan:kRefreshFloorSeconds];
 }
 
 - (void)quitApp { [NSApp terminate:nil]; }
