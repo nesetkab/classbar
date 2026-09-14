@@ -247,7 +247,12 @@ int main(int argc, char **argv) {
         printf("\nmarking work done\n");
         NSDictionary *withURL = @{ @"name": @"Chapter 5", @"due": @"2026-09-20T03:59:59Z",
                                    @"url": @"https://x.instructure.com/courses/1/assignments/2" };
-        NSDictionary *noURL = @{ @"name": @"Write poem", @"due": @"2026-09-20T03:59:59Z" };
+        NSDictionary *noURL = @{ @"name": @"Write poem", @"course": @"CRWT 1170",
+                                 @"due": @"2026-09-20T03:59:59Z" };
+        NSDictionary *moved = @{ @"name": @"Write poem", @"course": @"CRWT 1170",
+                                 @"due": @"2026-09-27T03:59:59Z" };
+        NSDictionary *sameName = @{ @"name": @"Write poem", @"course": @"ENGW 1111",
+                                    @"due": @"2026-09-20T03:59:59Z" };
         NSDate *anchorNow = ISODate(@"2026-09-15T00:00:00Z");
         NSDictionary *map = @{
             @"keep":  @"2026-09-20T03:59:59Z",
@@ -258,8 +263,15 @@ int main(int argc, char **argv) {
         struct { const char *label; BOOL ok; } doneChecks[] = {
             { "url is the key when present", [DoneKey(withURL) isEqualToString:
                   @"https://x.instructure.com/courses/1/assignments/2"] },
-            { "falls back to name and due",  [DoneKey(noURL) isEqualToString:
-                  @"Write poem|2026-09-20T03:59:59Z"] },
+            { "falls back to name and course", [DoneKey(noURL) isEqualToString:
+                  @"Write poem|CRWT 1170"] },
+            { "key survives a due date change", [DoneKey(noURL)
+                  isEqualToString:DoneKey(moved)] },
+            { "same name, other course differs", ![DoneKey(noURL)
+                  isEqualToString:DoneKey(sameName)] },
+            { "null fields do not crash",    [DoneKey(@{ @"name": [NSNull null],
+                                                         @"url": [NSNull null] })
+                  isEqualToString:@"|"] },
             { "two items never collide",     ![DoneKey(withURL) isEqualToString:DoneKey(noURL)] },
             { "pending marks survive",       pruned[@"keep"] != nil },
             { "past due marks are pruned",   pruned[@"stale"] == nil },
@@ -533,6 +545,16 @@ int main(int argc, char **argv) {
                   (sw.hideDoneCheck.state == NSControlStateValueOn) },
             { "hide toggle is on screen", sw.hideDoneCheck.superview != nil &&
                   NSWidth(sw.hideDoneCheck.frame) > 0 },
+            { "restores stage until save", ({ [sw openDoneSheet];
+                  NSUInteger before = DoneEntries().count;
+                  [sw restoreAll];
+                  BOOL staged = DoneEntries().count == before &&
+                                sw.doneRows.count == 0;
+                  [sw load];
+                  BOOL discarded = sw.pendingRestores.count == 0 &&
+                                   DoneEntries().count == before;
+                  [sw closeDoneSheet];
+                  staged && discarded; }) },
             { "restore sheet opens",   ({ [sw openDoneSheet];
                   BOOL built = sw.doneSheet != nil && sw.doneTable.numberOfColumns == 2;
                   [sw closeDoneSheet];

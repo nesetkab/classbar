@@ -90,7 +90,8 @@ static NSDate *DateFromYMD(int ymd) {
     self.hideDoneCheck = [NSButton checkboxWithTitle:@"Hide completed assignments"
                                               target:nil action:NULL];
 
-    NSTextField *capSuffix = [NSTextField labelWithString:@"rows in the menu"];
+    NSTextField *capSuffix = [NSTextField labelWithString:
+        @"rows in the menu, shared with completed work"];
     capSuffix.textColor = [NSColor secondaryLabelColor];
 
     NSStackView *capRow = [NSStackView stackViewWithViews:@[
@@ -244,6 +245,7 @@ static NSDate *DateFromYMD(int ymd) {
             @"canvas": c[@"canvas"] ?: @"", @"zoom": c[@"zoom"] ?: @"",
         } mutableCopy]];
     }
+    [self.pendingRestores removeAllObjects];
     [self.table reloadData];
     [self setStatus:@""];
 }
@@ -373,8 +375,16 @@ static NSDate *DateFromYMD(int ymd) {
                      (unsigned long)merged.count]];
 }
 
+- (void)reloadDoneRows {
+    NSMutableArray *rows = [NSMutableArray array];
+    for (NSDictionary *e in DoneEntries())
+        if (![self.pendingRestores containsObject:e[@"key"]]) [rows addObject:e];
+    self.doneRows = rows;
+}
+
 - (void)openDoneSheet {
-    self.doneRows = [[DoneEntries() mutableCopy] ?: [NSMutableArray array] mutableCopy];
+    if (!self.pendingRestores) self.pendingRestores = [NSMutableSet set];
+    [self reloadDoneRows];
 
     if (!self.doneSheet) {
         self.doneSheet = [[NSWindow alloc]
@@ -441,11 +451,11 @@ static NSDate *DateFromYMD(int ymd) {
 
 - (void)restoreKeys:(NSArray *)keys {
     if (!keys.count) return;
-    RestoreDone(keys);
-    self.doneRows = [[DoneEntries() mutableCopy] ?: [NSMutableArray array] mutableCopy];
+    [self.pendingRestores addObjectsFromArray:keys];
+    [self reloadDoneRows];
     [self.doneTable reloadData];
-    [self setStatus:[NSString stringWithFormat:@"Restored %lu",
-                     (unsigned long)keys.count]];
+    [self setStatus:[NSString stringWithFormat:@"%lu to restore on Save",
+                     (unsigned long)self.pendingRestores.count]];
 }
 
 - (void)restoreSelected {
@@ -534,6 +544,11 @@ static NSDate *DateFromYMD(int ymd) {
     if (!json || ![json writeToFile:SchedulePath() atomically:YES]) {
         [self alert:@"Could not save" info:SchedulePath()];
         return;
+    }
+
+    if (self.pendingRestores.count) {
+        RestoreDone([self.pendingRestores allObjects]);
+        [self.pendingRestores removeAllObjects];
     }
 
     [self setStatus:@"Saved"];

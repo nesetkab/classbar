@@ -129,16 +129,22 @@ NSString *DonePath(void) {
             @"Library/Application Support/classbar/done.json"];
 }
 
+static NSString *StringField(NSDictionary *d, NSString *key) {
+    id v = d[key];
+    return [v isKindOfClass:[NSString class]] ? v : @"";
+}
+
 NSString *DoneKey(NSDictionary *item) {
-    NSString *url = item[@"url"];
-    if ([url isKindOfClass:[NSString class]] && url.length) return url;
-    NSString *name = [item[@"name"] isKindOfClass:[NSString class]] ? item[@"name"] : @"";
-    NSString *due = [item[@"due"] isKindOfClass:[NSString class]] ? item[@"due"] : @"";
-    return [NSString stringWithFormat:@"%@|%@", name, due];
+    NSString *url = StringField(item, @"url");
+    if (url.length) return url;
+    return [NSString stringWithFormat:@"%@|%@",
+            StringField(item, @"name"), StringField(item, @"course")];
 }
 
 static NSDictionary *DoneEntry(id value) {
-    if ([value isKindOfClass:[NSDictionary class]]) return value;
+    if ([value isKindOfClass:[NSDictionary class]])
+        return @{ @"due": StringField(value, @"due"),
+                  @"name": StringField(value, @"name") };
     if ([value isKindOfClass:[NSString class]]) return @{ @"due": value, @"name": @"" };
     return nil;
 }
@@ -155,14 +161,20 @@ NSDictionary *PruneDone(NSDictionary *map, NSDate *now) {
     return kept;
 }
 
-static NSMutableDictionary *ReadDone(void) {
+static NSMutableDictionary *ReadDone(BOOL *repaired) {
+    if (repaired) *repaired = NO;
     NSData *d = [NSData dataWithContentsOfFile:DonePath()];
     id root = d ? [NSJSONSerialization JSONObjectWithData:d options:0 error:NULL] : nil;
-    if (![root isKindOfClass:[NSDictionary class]]) return [NSMutableDictionary dictionary];
+    if (![root isKindOfClass:[NSDictionary class]]) {
+        if (repaired && d) *repaired = YES;
+        return [NSMutableDictionary dictionary];
+    }
     NSMutableDictionary *out = [NSMutableDictionary dictionary];
-    for (NSString *key in root) {
-        NSDictionary *entry = DoneEntry(root[key]);
+    for (id key in root) {
+        NSDictionary *entry = [key isKindOfClass:[NSString class]]
+            ? DoneEntry(root[key]) : nil;
         if (entry) out[key] = entry;
+        else if (repaired) *repaired = YES;
     }
     return out;
 }
@@ -179,9 +191,10 @@ static void WriteDone(NSDictionary *map) {
 }
 
 NSDictionary *LoadDone(void) {
-    NSDictionary *map = ReadDone();
+    BOOL repaired = NO;
+    NSDictionary *map = ReadDone(&repaired);
     NSDictionary *kept = PruneDone(map, [NSDate date]);
-    if (kept.count != map.count) WriteDone(kept);
+    if (repaired || kept.count != map.count) WriteDone(kept);
     return kept;
 }
 
@@ -202,7 +215,7 @@ NSArray *DoneEntries(void) {
 }
 
 void SetDone(NSDictionary *item, BOOL done) {
-    NSMutableDictionary *map = ReadDone();
+    NSMutableDictionary *map = ReadDone(NULL);
     NSString *key = DoneKey(item);
     if (done) {
         id due = item[@"due"], name = item[@"name"];
@@ -215,7 +228,7 @@ void SetDone(NSDictionary *item, BOOL done) {
 }
 
 void RestoreDone(NSArray *keys) {
-    NSMutableDictionary *map = ReadDone();
+    NSMutableDictionary *map = ReadDone(NULL);
     [map removeObjectsForKeys:keys];
     WriteDone(map);
 }

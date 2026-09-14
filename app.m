@@ -317,8 +317,25 @@ static const NSTimeInterval kStaleSeconds = 300;
     dispatch_async(dispatch_get_main_queue(), ^{
         ClassBar *me = weak;
         NSMenu *m = me.liveMenu;
-        if (me.menuOpen && m) [me menuNeedsUpdate:m];
+        if (!me.menuOpen || !m) return;
+        [me menuNeedsUpdate:m];
+        [me restoreHoverUnderCursor:m];
     });
+}
+
+- (void)restoreHoverUnderCursor:(NSMenu *)menu {
+    NSPoint mouse = [NSEvent mouseLocation];
+    for (NSMenuItem *item in menu.itemArray) {
+        NSView *v = item.view;
+        if (![v isKindOfClass:[HoverTipView class]] || !v.window) continue;
+        NSRect onScreen = [v.window convertRectToScreen:
+            [v convertRect:v.bounds toView:nil]];
+        if (!NSPointInRect(mouse, onScreen)) continue;
+        HoverTipView *hover = (HoverTipView *)v;
+        [hover syncHoverAt:[v convertPoint:
+            [v.window convertPointFromScreen:mouse] fromView:nil]];
+        return;
+    }
 }
 
 - (void)menuDidClose:(NSMenu *)menu __unused {

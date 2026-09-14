@@ -371,7 +371,20 @@ NSFont *NameFont(void) {
 }
 
 - (NSString *)accessibilityLabel {
-    return TipJoin(@[self.due ?: @"", self.name ?: @""]);
+    return TipJoin(@[self.due ?: @"", self.name ?: @"",
+                     self.done ? @"completed" : @""]);
+}
+
+- (NSArray<NSAccessibilityCustomAction *> *)accessibilityCustomActions {
+    if (!self.target || !self.toggleAction) return @[];
+    __weak AssignmentView *weak = self;
+    NSString *title = self.done ? @"Mark not done" : @"Mark done";
+    return @[[[NSAccessibilityCustomAction alloc] initWithName:title handler:^BOOL{
+        AssignmentView *me = weak;
+        if (!me || !me.target || !me.toggleAction) return NO;
+        ((void (*)(id, SEL, id))objc_msgSend)(me.target, me.toggleAction, me);
+        return YES;
+    }]];
 }
 
 - (void)drawRect:(NSRect)dirty __unused {

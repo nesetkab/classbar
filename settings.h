@@ -14,6 +14,7 @@
 @property (strong) NSWindow *doneSheet;
 @property (strong) NSTableView *doneTable;
 @property (strong) NSMutableArray *doneRows;
+@property (strong) NSMutableSet *pendingRestores;
 @property (strong) NSTableView *table;
 @property (strong) NSTextField *statusLabel;
 @property (weak)   id target;
@@ -27,4 +28,5 @@
 - (NSDictionary *)buildRoot;
 - (void)openDoneSheet;
 - (void)closeDoneSheet;
+- (void)restoreAll;
 @end
