@@ -10,6 +10,7 @@ extern const char * const kDayName[7];
 @property (copy)   NSString *beforeLabel;
 @property (copy)   NSString *canvasFeed;
 @property (assign) int assignmentCap;
+@property (assign) BOOL hideDone;
 @property (copy)   NSString *loadError;
 + (instancetype)loadFromDisk;
 @end

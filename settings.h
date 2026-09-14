@@ -10,6 +10,10 @@
 @property (strong) NSTextField *beforeField;
 @property (strong) NSTextField *capField;
 @property (strong) NSStepper *capStepper;
+@property (strong) NSButton *hideDoneCheck;
+@property (strong) NSWindow *doneSheet;
+@property (strong) NSTableView *doneTable;
+@property (strong) NSMutableArray *doneRows;
 @property (strong) NSTableView *table;
 @property (strong) NSTextField *statusLabel;
 @property (weak)   id target;
@@ -21,4 +25,6 @@
 - (void)setCap:(int)cap;
 - (NSArray *)problems;
 - (NSDictionary *)buildRoot;
+- (void)openDoneSheet;
+- (void)closeDoneSheet;
 @end

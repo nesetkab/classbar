@@ -23,3 +23,5 @@ NSString *DoneKey(NSDictionary *item);
 NSDictionary *PruneDone(NSDictionary *map, NSDate *now);
 NSDictionary *LoadDone(void);
 void SetDone(NSDictionary *item, BOOL done);
+NSArray *DoneEntries(void);
+void RestoreDone(NSArray *keys);

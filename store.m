@@ -128,14 +128,20 @@ NSString *DoneKey(NSDictionary *item) {
     return [NSString stringWithFormat:@"%@|%@", name, due];
 }
 
+static NSDictionary *DoneEntry(id value) {
+    if ([value isKindOfClass:[NSDictionary class]]) return value;
+    if ([value isKindOfClass:[NSString class]]) return @{ @"due": value, @"name": @"" };
+    return nil;
+}
+
 NSDictionary *PruneDone(NSDictionary *map, NSDate *now) {
     NSMutableDictionary *kept = [NSMutableDictionary dictionary];
     for (NSString *key in map) {
-        id stamp = map[key];
-        if (![stamp isKindOfClass:[NSString class]]) continue;
-        NSDate *due = ParseISO(stamp);
+        NSDictionary *entry = DoneEntry(map[key]);
+        if (!entry) continue;
+        NSDate *due = ParseISO(entry[@"due"]);
         if (due && [due compare:now] == NSOrderedAscending) continue;
-        kept[key] = stamp;
+        kept[key] = entry;
     }
     return kept;
 }
@@ -144,7 +150,12 @@ static NSMutableDictionary *ReadDone(void) {
     NSData *d = [NSData dataWithContentsOfFile:DonePath()];
     id root = d ? [NSJSONSerialization JSONObjectWithData:d options:0 error:NULL] : nil;
     if (![root isKindOfClass:[NSDictionary class]]) return [NSMutableDictionary dictionary];
-    return [root mutableCopy];
+    NSMutableDictionary *out = [NSMutableDictionary dictionary];
+    for (NSString *key in root) {
+        NSDictionary *entry = DoneEntry(root[key]);
+        if (entry) out[key] = entry;
+    }
+    return out;
 }
 
 static void WriteDone(NSDictionary *map) {
@@ -165,14 +176,37 @@ NSDictionary *LoadDone(void) {
     return kept;
 }
 
+NSArray *DoneEntries(void) {
+    NSDictionary *map = LoadDone();
+    NSMutableArray *out = [NSMutableArray array];
+    for (NSString *key in map) {
+        NSDictionary *e = map[key];
+        [out addObject:@{ @"key": key,
+                          @"name": e[@"name"] ?: @"",
+                          @"due": e[@"due"] ?: @"" }];
+    }
+    [out sortUsingComparator:^NSComparisonResult(NSDictionary *a, NSDictionary *b) {
+        NSComparisonResult r = [a[@"due"] compare:b[@"due"]];
+        return r == NSOrderedSame ? [a[@"name"] compare:b[@"name"]] : r;
+    }];
+    return out;
+}
+
 void SetDone(NSDictionary *item, BOOL done) {
     NSMutableDictionary *map = ReadDone();
     NSString *key = DoneKey(item);
     if (done) {
-        id due = item[@"due"];
-        map[key] = [due isKindOfClass:[NSString class]] ? due : @"";
+        id due = item[@"due"], name = item[@"name"];
+        map[key] = @{ @"due": [due isKindOfClass:[NSString class]] ? due : @"",
+                      @"name": [name isKindOfClass:[NSString class]] ? name : @"" };
     } else {
         [map removeObjectForKey:key];
     }
+    WriteDone(map);
+}
+
+void RestoreDone(NSArray *keys) {
+    NSMutableDictionary *map = ReadDone();
+    [map removeObjectsForKeys:keys];
     WriteDone(map);
 }

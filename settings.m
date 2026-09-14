@@ -87,12 +87,20 @@ static NSDate *DateFromYMD(int ymd) {
     self.capStepper.target = self;
     self.capStepper.action = @selector(capStepperMoved);
 
+    self.hideDoneCheck = [NSButton checkboxWithTitle:@"Hide completed assignments"
+                                              target:nil action:NULL];
+
     NSTextField *capSuffix = [NSTextField labelWithString:@"rows in the menu"];
     capSuffix.textColor = [NSColor secondaryLabelColor];
 
     NSStackView *capRow = [NSStackView stackViewWithViews:@[
         self.capField, self.capStepper, capSuffix]];
     capRow.spacing = 6;
+
+    NSStackView *doneRow = [NSStackView stackViewWithViews:@[
+        self.hideDoneCheck,
+        [self buttonWithTitle:@"Restore…" action:@selector(openDoneSheet)]]];
+    doneRow.spacing = 10;
 
     NSGridView *grid = [NSGridView gridViewWithViews:@[
         @[[self labelWithText:@"Canvas feed URL"], self.feedField],
@@ -101,13 +109,14 @@ static NSDate *DateFromYMD(int ymd) {
         @[[self labelWithText:@"Term ends"], self.endPicker],
         @[[self labelWithText:@"Before term"], self.beforeField],
         @[[self labelWithText:@"Show at most"], capRow],
+        @[[self labelWithText:@"Completed"], doneRow],
     ]];
     grid.rowSpacing = 8;
     grid.columnSpacing = 10;
     [grid columnAtIndex:0].width = 130;
     [grid columnAtIndex:0].xPlacement = NSGridCellPlacementTrailing;
     [grid columnAtIndex:1].xPlacement = NSGridCellPlacementFill;
-    for (NSNumber *row in @[@2, @3, @5])
+    for (NSNumber *row in @[@2, @3, @5, @6])
         [grid cellAtColumnIndex:1 rowIndex:row.integerValue].xPlacement =
             NSGridCellPlacementLeading;
 
@@ -212,6 +221,8 @@ static NSDate *DateFromYMD(int ymd) {
         ? root[@"canvasHome"] : @"";
     [self setCap:[root[@"assignmentCap"] isKindOfClass:[NSNumber class]]
         ? [root[@"assignmentCap"] intValue] : kDefaultAssignmentCap];
+    self.hideDoneCheck.state = [root[@"hideDone"] boolValue] ? NSControlStateValueOn
+                                                             : NSControlStateValueOff;
 
     NSDictionary *term = [root[@"term"] isKindOfClass:[NSDictionary class]]
         ? root[@"term"] : @{};
@@ -237,13 +248,30 @@ static NSDate *DateFromYMD(int ymd) {
     [self setStatus:@""];
 }
 
-- (NSInteger)numberOfRowsInTableView:(NSTableView *)tv __unused {
+- (NSInteger)numberOfRowsInTableView:(NSTableView *)tv {
+    if (tv == self.doneTable) return (NSInteger)self.doneRows.count;
     return (NSInteger)self.classes.count;
 }
 
 - (NSView *)tableView:(NSTableView *)tv viewForTableColumn:(NSTableColumn *)column
                   row:(NSInteger)row {
     NSString *key = column.identifier;
+    if (tv == self.doneTable) {
+        NSTextField *cell = [tv makeViewWithIdentifier:key owner:self];
+        if (!cell) {
+            cell = [NSTextField labelWithString:@""];
+            cell.identifier = key;
+            cell.font = [NSFont systemFontOfSize:12];
+        }
+        NSDictionary *entry = self.doneRows[(NSUInteger)row];
+        if ([key isEqualToString:@"doneDue"]) {
+            NSDate *due = ParseISO(entry[@"due"]);
+            cell.stringValue = due ? DueLabel([NSCalendar currentCalendar], due) : @"";
+        } else {
+            cell.stringValue = [entry[@"name"] length] ? entry[@"name"] : entry[@"key"];
+        }
+        return cell;
+    }
     NSTextField *field = [tv makeViewWithIdentifier:key owner:self];
     if (!field) {
         field = [NSTextField textFieldWithString:@""];
@@ -345,6 +373,96 @@ static NSDate *DateFromYMD(int ymd) {
                      (unsigned long)merged.count]];
 }
 
+- (void)openDoneSheet {
+    self.doneRows = [[DoneEntries() mutableCopy] ?: [NSMutableArray array] mutableCopy];
+
+    if (!self.doneSheet) {
+        self.doneSheet = [[NSWindow alloc]
+            initWithContentRect:NSMakeRect(0, 0, 460, 320)
+                      styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskResizable
+                        backing:NSBackingStoreBuffered
+                          defer:NO];
+        self.doneSheet.title = @"Completed Assignments";
+
+        self.doneTable = [[NSTableView alloc] init];
+        self.doneTable.dataSource = self;
+        self.doneTable.delegate = self;
+        self.doneTable.allowsMultipleSelection = YES;
+        self.doneTable.usesAlternatingRowBackgroundColors = YES;
+        [self.doneTable addTableColumn:[self columnWithId:@"doneName"
+                                                    title:@"Assignment" width:300]];
+        [self.doneTable addTableColumn:[self columnWithId:@"doneDue"
+                                                    title:@"Due" width:120]];
+
+        NSScrollView *scroll = [[NSScrollView alloc] init];
+        scroll.documentView = self.doneTable;
+        scroll.hasVerticalScroller = YES;
+        scroll.borderType = NSBezelBorder;
+
+        NSView *spacer = [[NSView alloc] init];
+        [spacer setContentHuggingPriority:NSLayoutPriorityDefaultLow
+                           forOrientation:NSLayoutConstraintOrientationHorizontal];
+
+        NSButton *close = [self buttonWithTitle:@"Done" action:@selector(closeDoneSheet)];
+        close.keyEquivalent = @"\r";
+
+        NSStackView *buttons = [NSStackView stackViewWithViews:@[
+            [self buttonWithTitle:@"Restore Selected" action:@selector(restoreSelected)],
+            [self buttonWithTitle:@"Restore All" action:@selector(restoreAll)],
+            spacer, close]];
+        buttons.spacing = 8;
+
+        NSStackView *root = [NSStackView stackViewWithViews:@[scroll, buttons]];
+        root.orientation = NSUserInterfaceLayoutOrientationVertical;
+        root.alignment = NSLayoutAttributeLeading;
+        root.spacing = 12;
+        root.edgeInsets = NSEdgeInsetsMake(18, 18, 18, 18);
+        root.translatesAutoresizingMaskIntoConstraints = NO;
+
+        NSView *content = self.doneSheet.contentView;
+        [content addSubview:root];
+        [NSLayoutConstraint activateConstraints:@[
+            [root.topAnchor constraintEqualToAnchor:content.topAnchor],
+            [root.bottomAnchor constraintEqualToAnchor:content.bottomAnchor],
+            [root.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
+            [root.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
+            [scroll.widthAnchor constraintEqualToAnchor:root.widthAnchor constant:-36],
+            [buttons.widthAnchor constraintEqualToAnchor:root.widthAnchor constant:-36],
+        ]];
+    }
+
+    [self.doneTable reloadData];
+    [self.window beginSheet:self.doneSheet completionHandler:nil];
+}
+
+- (void)closeDoneSheet {
+    [self.window endSheet:self.doneSheet];
+}
+
+- (void)restoreKeys:(NSArray *)keys {
+    if (!keys.count) return;
+    RestoreDone(keys);
+    self.doneRows = [[DoneEntries() mutableCopy] ?: [NSMutableArray array] mutableCopy];
+    [self.doneTable reloadData];
+    [self setStatus:[NSString stringWithFormat:@"Restored %lu",
+                     (unsigned long)keys.count]];
+}
+
+- (void)restoreSelected {
+    NSMutableArray *keys = [NSMutableArray array];
+    [self.doneTable.selectedRowIndexes enumerateIndexesUsingBlock:
+        ^(NSUInteger i, BOOL *stop __unused) {
+        if (i < self.doneRows.count) [keys addObject:self.doneRows[i][@"key"]];
+    }];
+    [self restoreKeys:keys];
+}
+
+- (void)restoreAll {
+    NSMutableArray *keys = [NSMutableArray array];
+    for (NSDictionary *r in self.doneRows) [keys addObject:r[@"key"]];
+    [self restoreKeys:keys];
+}
+
 - (void)alert:(NSString *)title info:(NSString *)info {
     NSAlert *a = [[NSAlert alloc] init];
     a.messageText = title;
@@ -389,6 +507,7 @@ static NSDate *DateFromYMD(int ymd) {
         @"canvasHome": self.homeField.stringValue,
         @"canvasFeed": self.feedField.stringValue,
         @"assignmentCap": @(ClampCap(self.capField.intValue)),
+        @"hideDone": @(self.hideDoneCheck.state == NSControlStateValueOn),
         @"term": @{ @"start": @(YMD(self.startPicker.dateValue)),
                     @"end": @(YMD(self.endPicker.dateValue)),
                     @"beforeLabel": self.beforeField.stringValue },

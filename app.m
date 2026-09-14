@@ -77,11 +77,21 @@ static const NSTimeInterval kStaleSeconds = 300;
         if (![a isKindOfClass:[NSDictionary class]]) continue;
         NSDate *due = ParseISO(a[@"due"]);
         if (due && [due compare:now] == NSOrderedAscending) continue;
-        NSString *key = DoneKey(a);
-        if (doneMap[key] && ![self.sessionMarks containsObject:key]) continue;
         [pending addObject:a];
     }
-    NSArray *up = pending;
+
+    NSMutableArray *todo = [NSMutableArray array];
+    NSMutableArray *finished = [NSMutableArray array];
+    for (NSDictionary *a in pending) {
+        NSString *key = DoneKey(a);
+        BOOL done = doneMap[key] != nil;
+        if (done && self.schedule.hideDone &&
+            ![self.sessionMarks containsObject:key]) continue;
+        [(done ? finished : todo) addObject:a];
+    }
+    NSMutableArray *ordered = [NSMutableArray arrayWithArray:todo];
+    [ordered addObjectsFromArray:finished];
+    NSArray *up = ordered;
     if ((int)up.count > self.schedule.assignmentCap)
         up = [up subarrayWithRange:NSMakeRange(0, (NSUInteger)self.schedule.assignmentCap)];
 

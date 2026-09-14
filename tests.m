@@ -507,6 +507,14 @@ int main(int argc, char **argv) {
                                        gSched.termStart },
             { "feed field round trips", [rebuilt[@"canvasFeed"] isEqualToString:
                   sw.feedField.stringValue] },
+            { "hide toggle round trips", [rebuilt[@"hideDone"] boolValue] ==
+                  (sw.hideDoneCheck.state == NSControlStateValueOn) },
+            { "hide toggle is on screen", sw.hideDoneCheck.superview != nil &&
+                  NSWidth(sw.hideDoneCheck.frame) > 0 },
+            { "restore sheet opens",   ({ [sw openDoneSheet];
+                  BOOL built = sw.doneSheet != nil && sw.doneTable.numberOfColumns == 2;
+                  [sw closeDoneSheet];
+                  built; }) },
             { "cap round trips",       [rebuilt[@"assignmentCap"] intValue] ==
                   ClampCap(sw.capField.intValue) },
             { "typed junk clamps",     ({ [sw setCap:9999];

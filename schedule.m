@@ -37,6 +37,8 @@ int ParseClock(NSString *s) {
 
     if ([root[@"canvasHome"] isKindOfClass:[NSString class]]) s.canvasHome = root[@"canvasHome"];
     if ([root[@"canvasFeed"] isKindOfClass:[NSString class]]) s.canvasFeed = root[@"canvasFeed"];
+    if ([root[@"hideDone"] isKindOfClass:[NSNumber class]])
+        s.hideDone = [root[@"hideDone"] boolValue];
     if ([root[@"assignmentCap"] isKindOfClass:[NSNumber class]])
         s.assignmentCap = ClampCap([root[@"assignmentCap"] intValue]);
     NSDictionary *term = root[@"term"];
