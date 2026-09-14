@@ -114,3 +114,65 @@ NSString *Clip(NSString *s, NSUInteger n) {
     if (s.length <= n) return s;
     return [[s substringToIndex:n - 1] stringByAppendingString:@"…"];
 }
+
+NSString *DonePath(void) {
+    return [NSHomeDirectory() stringByAppendingPathComponent:
+            @"Library/Application Support/classbar/done.json"];
+}
+
+NSString *DoneKey(NSDictionary *item) {
+    NSString *url = item[@"url"];
+    if ([url isKindOfClass:[NSString class]] && url.length) return url;
+    NSString *name = [item[@"name"] isKindOfClass:[NSString class]] ? item[@"name"] : @"";
+    NSString *due = [item[@"due"] isKindOfClass:[NSString class]] ? item[@"due"] : @"";
+    return [NSString stringWithFormat:@"%@|%@", name, due];
+}
+
+NSDictionary *PruneDone(NSDictionary *map, NSDate *now) {
+    NSMutableDictionary *kept = [NSMutableDictionary dictionary];
+    for (NSString *key in map) {
+        id stamp = map[key];
+        if (![stamp isKindOfClass:[NSString class]]) continue;
+        NSDate *due = ParseISO(stamp);
+        if (due && [due compare:now] == NSOrderedAscending) continue;
+        kept[key] = stamp;
+    }
+    return kept;
+}
+
+static NSMutableDictionary *ReadDone(void) {
+    NSData *d = [NSData dataWithContentsOfFile:DonePath()];
+    id root = d ? [NSJSONSerialization JSONObjectWithData:d options:0 error:NULL] : nil;
+    if (![root isKindOfClass:[NSDictionary class]]) return [NSMutableDictionary dictionary];
+    return [root mutableCopy];
+}
+
+static void WriteDone(NSDictionary *map) {
+    NSData *d = [NSJSONSerialization dataWithJSONObject:map
+                                                options:NSJSONWritingPrettyPrinted
+                                                  error:NULL];
+    if (!d) return;
+    [[NSFileManager defaultManager]
+        createDirectoryAtPath:[DonePath() stringByDeletingLastPathComponent]
+      withIntermediateDirectories:YES attributes:nil error:NULL];
+    [d writeToFile:DonePath() atomically:YES];
+}
+
+NSDictionary *LoadDone(void) {
+    NSDictionary *map = ReadDone();
+    NSDictionary *kept = PruneDone(map, [NSDate date]);
+    if (kept.count != map.count) WriteDone(kept);
+    return kept;
+}
+
+void SetDone(NSDictionary *item, BOOL done) {
+    NSMutableDictionary *map = ReadDone();
+    NSString *key = DoneKey(item);
+    if (done) {
+        id due = item[@"due"];
+        map[key] = [due isKindOfClass:[NSString class]] ? due : @"";
+    } else {
+        [map removeObjectForKey:key];
+    }
+    WriteDone(map);
+}

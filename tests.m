@@ -7,6 +7,11 @@
 #import "store.h"
 
 static int fails = 0;
+
+static NSDate *ISODate(NSString *s) {
+    return [ISOFormatter() dateFromString:s];
+}
+
 static Schedule *gSched;
 
 static void T(const char *label, int ymd, int mins, int day,
@@ -47,11 +52,11 @@ int main(int argc, char **argv) {
         gSched = [Schedule loadFromDisk];
 
         if (argc > 2 && strcmp(argv[1], "--rows") == 0) {
-            NSArray *rows = @[ @[@"today 11:59p", @"Chapter 5: Problem Definition", @0],
-                               @[@"tmr 9:15a", @"Reading guide 3.8 - 3.12", @0],
-                               @[@"2d", @"Week 2 - Upload your responses to poems", @0],
-                               @[@"late", @"Welcome Survey Confirmation", @1] ];
-            CGFloat w = 320, h = 22, pad = 10, dueWidth = 0;
+            NSArray *rows = @[ @[@"today 11:59p", @"Chapter 5: Problem Definition", @0, @0],
+                               @[@"tmr 9:15a", @"Reading guide 3.8 - 3.12", @0, @0],
+                               @[@"2d", @"Week 2 - Upload your responses to poems", @0, @1],
+                               @[@"late", @"Welcome Survey Confirmation", @1, @0] ];
+            CGFloat w = 360, h = 22, pad = 10, dueWidth = 0;
             for (NSArray *r in rows) {
                 CGFloat dw = [r[0] sizeWithAttributes:
                     @{ NSFontAttributeName: DueFont(YES) }].width;
@@ -69,6 +74,7 @@ int main(int argc, char **argv) {
                 v.due = r[0];
                 v.name = r[1];
                 v.late = [r[2] boolValue];
+                v.done = [r[3] boolValue];
                 v.dueWidth = dueWidth;
                 v.hovered = (i == 1);
                 v.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
@@ -236,6 +242,33 @@ int main(int argc, char **argv) {
         for (size_t i = 0; i < sizeof(freeChecks) / sizeof(freeChecks[0]); i++) {
             if (!freeChecks[i].ok) fails++;
             printf("  %-4s %s\n", freeChecks[i].ok ? "ok" : "FAIL", freeChecks[i].label);
+        }
+
+        printf("\nmarking work done\n");
+        NSDictionary *withURL = @{ @"name": @"Chapter 5", @"due": @"2026-09-20T03:59:59Z",
+                                   @"url": @"https://x.instructure.com/courses/1/assignments/2" };
+        NSDictionary *noURL = @{ @"name": @"Write poem", @"due": @"2026-09-20T03:59:59Z" };
+        NSDate *anchorNow = ISODate(@"2026-09-15T00:00:00Z");
+        NSDictionary *map = @{
+            @"keep":  @"2026-09-20T03:59:59Z",
+            @"stale": @"2026-09-10T03:59:59Z",
+            @"undated": @"",
+        };
+        NSDictionary *pruned = PruneDone(map, anchorNow);
+        struct { const char *label; BOOL ok; } doneChecks[] = {
+            { "url is the key when present", [DoneKey(withURL) isEqualToString:
+                  @"https://x.instructure.com/courses/1/assignments/2"] },
+            { "falls back to name and due",  [DoneKey(noURL) isEqualToString:
+                  @"Write poem|2026-09-20T03:59:59Z"] },
+            { "two items never collide",     ![DoneKey(withURL) isEqualToString:DoneKey(noURL)] },
+            { "pending marks survive",       pruned[@"keep"] != nil },
+            { "past due marks are pruned",   pruned[@"stale"] == nil },
+            { "undated marks survive",       pruned[@"undated"] != nil },
+            { "prune leaves the rest alone", pruned.count == 2 },
+        };
+        for (size_t i = 0; i < sizeof(doneChecks) / sizeof(doneChecks[0]); i++) {
+            if (!doneChecks[i].ok) fails++;
+            printf("  %-4s %s\n", doneChecks[i].ok ? "ok" : "FAIL", doneChecks[i].label);
         }
 
         printf("\ntooltip shape\n");

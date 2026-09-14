@@ -6,6 +6,7 @@
 #import "store.h"
 
 const CGFloat kDueColumnGap = 12.0;
+const CGFloat kDoneCircleWidth = 26.0;
 
 static NSImage *Symbol(NSString *name, CGFloat pt, NSColor *color) {
     NSImage *img = [NSImage imageWithSystemSymbolName:name accessibilityDescription:nil];
@@ -313,12 +314,52 @@ NSFont *NameFont(void) {
     return NSMakeRect(5, 1, NSWidth(self.bounds) - 10, NSHeight(self.bounds) - 2);
 }
 
-- (void)mouseUp:(NSEvent *)e __unused {
+- (NSRect)circleRect {
+    NSRect r = [self rowRect];
+    CGFloat d = 13;
+    return NSMakeRect(NSMaxX(r) - d - 9, NSMidY(r) - d / 2, d, d);
+}
+
+- (void)syncHoverAt:(NSPoint)pt {
+    BOOL on = NSPointInRect(pt, NSInsetRect([self circleRect], -5, -4));
+    if (on != self.overCircle) {
+        self.overCircle = on;
+        self.needsDisplay = YES;
+    }
+    [super syncHoverAt:pt];
+}
+
+- (void)mouseExited:(NSEvent *)e {
+    self.overCircle = NO;
+    [super mouseExited:e];
+}
+
+- (void)mouseUp:(NSEvent *)e {
+    NSPoint pt = [self convertPoint:e.locationInWindow fromView:nil];
+    if (NSPointInRect(pt, NSInsetRect([self circleRect], -5, -4))) {
+        if (self.target && self.toggleAction)
+            ((void (*)(id, SEL, id))objc_msgSend)(self.target, self.toggleAction, self);
+        return;
+    }
     if (!self.link.length) return;
     [self cancelTip];
     [self.enclosingMenuItem.menu cancelTracking];
     NSURL *u = [NSURL URLWithString:self.link];
     if (u) [[NSWorkspace sharedWorkspace] openURL:u];
+}
+
+- (void)drawCircle {
+    if (!self.hovered && !self.done) return;
+    NSRect c = [self circleRect];
+    NSColor *ink = self.hovered ? [NSColor alternateSelectedControlTextColor]
+                                : [NSColor tertiaryLabelColor];
+    NSBezierPath *ring = [NSBezierPath bezierPathWithOvalInRect:NSInsetRect(c, 1, 1)];
+    ring.lineWidth = 1.5;
+    [[ink colorWithAlphaComponent:self.overCircle ? 1.0 : 0.65] setStroke];
+    [ring stroke];
+    if (!self.done) return;
+    [[ink colorWithAlphaComponent:0.9] setFill];
+    [[NSBezierPath bezierPathWithOvalInRect:NSInsetRect(c, 4, 4)] fill];
 }
 
 - (BOOL)isAccessibilityElement {
@@ -348,32 +389,49 @@ NSFont *NameFont(void) {
         NSFontAttributeName: DueFont(self.late),
         NSForegroundColorAttributeName: dueColor
     };
-    NSDictionary *nameAttr = @{
+    NSMutableDictionary *nameAttr = [@{
         NSFontAttributeName: NameFont(),
         NSForegroundColorAttributeName: self.hovered
             ? [NSColor alternateSelectedControlTextColor] : [NSColor labelColor]
-    };
+    } mutableCopy];
+    if (self.done) {
+        nameAttr[NSStrikethroughStyleAttributeName] = @(NSUnderlineStyleSingle);
+        if (!self.hovered)
+            nameAttr[NSForegroundColorAttributeName] = [NSColor tertiaryLabelColor];
+    }
+
+    NSMutableParagraphStyle *clip = [[NSMutableParagraphStyle alloc] init];
+    clip.lineBreakMode = NSLineBreakByTruncatingTail;
+    nameAttr[NSParagraphStyleAttributeName] = clip;
 
     NSSize ds = [self.due sizeWithAttributes:dueAttr];
     NSSize ns = [self.name sizeWithAttributes:nameAttr];
     CGFloat x = NSMinX([self rowRect]) + 9;
     [self.due drawAtPoint:NSMakePoint(x, NSMidY(self.bounds) - ds.height / 2)
            withAttributes:dueAttr];
-    [self.name drawAtPoint:NSMakePoint(x + self.dueWidth + kDueColumnGap,
-                                       NSMidY(self.bounds) - ns.height / 2)
-            withAttributes:nameAttr];
+
+    CGFloat nameX = x + self.dueWidth + kDueColumnGap;
+    CGFloat nameW = NSMinX([self circleRect]) - 7 - nameX;
+    if (nameW > 0)
+        [self.name drawInRect:NSMakeRect(nameX, NSMidY(self.bounds) - ns.height / 2,
+                                         nameW, ns.height)
+               withAttributes:nameAttr];
+    [self drawCircle];
 }
 
 @end
 
-NSMenuItem *AssignmentItem(NSString *due, NSString *name, NSString *link,
-                                  NSString *tip, BOOL late, CGFloat dueWidth,
-                                  CGFloat width) {
+NSMenuItem *AssignmentItem(NSDictionary *item, NSString *due, NSString *name,
+                           NSString *link, NSString *tip, BOOL late, BOOL done,
+                           CGFloat dueWidth, CGFloat width,
+                           id target, SEL toggleAction) {
     AssignmentView *v = [[AssignmentView alloc]
         initWithFrame:NSMakeRect(0, 0, width, 22)];
     v.autoresizingMask = NSViewWidthSizable;
     v.due = due; v.name = name; v.link = link; v.tip = tip; v.late = late;
     v.dueWidth = dueWidth;
+    v.item = item; v.done = done;
+    v.target = target; v.toggleAction = toggleAction;
     NSMenuItem *i = [[NSMenuItem alloc] init];
     i.view = v;
     return i;

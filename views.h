@@ -1,6 +1,7 @@
 #import <Cocoa/Cocoa.h>
 
 extern const CGFloat kDueColumnGap;
+extern const CGFloat kDoneCircleWidth;
 
 @interface HoverTipView : NSView
 @property (copy)   NSString *tip;
@@ -17,7 +18,12 @@ extern const CGFloat kDueColumnGap;
 @property (copy) NSString *name;
 @property (copy) NSString *link;
 @property (assign) BOOL late;
+@property (assign) BOOL done;
+@property (assign) BOOL overCircle;
 @property (assign) CGFloat dueWidth;
+@property (strong) NSDictionary *item;
+@property (weak)   id target;
+@property (assign) SEL toggleAction;
 @end
 
 @interface FooterView : NSView
@@ -36,8 +42,10 @@ void TipHide(void);
 NSFont *DueFont(BOOL late);
 NSFont *NameFont(void);
 
-NSMenuItem *AssignmentItem(NSString *due, NSString *name, NSString *link,
-                           NSString *tip, BOOL late, CGFloat dueWidth, CGFloat width);
+NSMenuItem *AssignmentItem(NSDictionary *item, NSString *due, NSString *name,
+                           NSString *link, NSString *tip, BOOL late, BOOL done,
+                           CGFloat dueWidth, CGFloat width,
+                           id target, SEL toggleAction);
 NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *room,
                      NSString *link, NSString *zoom, NSString *tip,
                      NSColor *bg, CGFloat width);

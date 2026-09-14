@@ -16,6 +16,7 @@
 @property (assign) BOOL fetching;
 @property (assign) BOOL menuOpen;
 @property (strong) NSArray *cachedItems;
+@property (strong) NSMutableSet *sessionMarks;
 @property (strong) SettingsWindow *settings;
 @property (copy)   NSString *link;
 @end
@@ -69,11 +70,15 @@ static const NSTimeInterval kStaleSeconds = 300;
 
     NSDate *now = [NSDate date];
     self.cachedItems = LoadUpcoming();
+    NSDictionary *doneMap = LoadDone();
+    if (!self.sessionMarks) self.sessionMarks = [NSMutableSet set];
     NSMutableArray *pending = [NSMutableArray array];
     for (NSDictionary *a in self.cachedItems) {
         if (![a isKindOfClass:[NSDictionary class]]) continue;
         NSDate *due = ParseISO(a[@"due"]);
         if (due && [due compare:now] == NSOrderedAscending) continue;
+        NSString *key = DoneKey(a);
+        if (doneMap[key] && ![self.sessionMarks containsObject:key]) continue;
         [pending addObject:a];
     }
     NSArray *up = pending;
@@ -94,7 +99,9 @@ static const NSTimeInterval kStaleSeconds = 300;
         if (nw > nameMax) nameMax = nw;
     }
     CGFloat dueWidth = ceil(dueMax);
-    CGFloat cardWidth = MAX(292.0, dueWidth + kDueColumnGap + ceil(nameMax) + 26.0);
+    CGFloat cardWidth = MAX(292.0,
+                            dueWidth + kDueColumnGap + ceil(nameMax) +
+                            kDoneCircleWidth + 26.0);
 
     NSArray *series = cb_series(self.schedule, ymd, mins, day, 2);
     {
@@ -132,9 +139,11 @@ static const NSTimeInterval kStaleSeconds = 300;
             NSString *tip = TipText(full,
                 @[[cs isKindOfClass:[NSString class]] ? cs : @"", whenLine]);
 
-            [menu addItem:AssignmentItem(dl, Clip(nm, 36),
+            [menu addItem:AssignmentItem(a, dl, Clip(nm, 36),
                                          [ur isKindOfClass:[NSString class]] ? ur : @"",
-                                         tip, late, dueWidth, cardWidth)];
+                                         tip, late, doneMap[DoneKey(a)] != nil,
+                                         dueWidth, cardWidth,
+                                         self, @selector(toggleDone:))];
         }
     }
 
@@ -280,8 +289,19 @@ static const NSTimeInterval kStaleSeconds = 300;
     self.menuOpen = YES;
 }
 
+- (void)toggleDone:(AssignmentView *)row {
+    BOOL next = !row.done;
+    SetDone(row.item, next);
+    NSString *key = DoneKey(row.item);
+    if (next) [self.sessionMarks addObject:key];
+    else [self.sessionMarks removeObject:key];
+    row.done = next;
+    row.needsDisplay = YES;
+}
+
 - (void)menuDidClose:(NSMenu *)menu __unused {
     self.menuOpen = NO;
+    [self.sessionMarks removeAllObjects];
     TipHide();
     [self refreshIfOlderThan:kRefreshFloorSeconds];
 }
