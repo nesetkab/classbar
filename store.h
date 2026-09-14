@@ -20,6 +20,7 @@ NSDate *ParseISO(NSString *s);
 NSString *DueLabel(NSCalendar *cal, NSDate *due);
 NSString *Clip(NSString *s, NSUInteger n);
 
+NSURL *FeedURL(NSString *raw);
 NSString *DonePath(void);
 NSString *DoneKey(NSDictionary *item);
 NSDictionary *PruneDone(NSDictionary *map, NSDate *now);

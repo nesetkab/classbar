@@ -8,6 +8,33 @@
 
 static int fails = 0;
 
+static Schedule *FixtureSchedule(void) {
+    NSString *canvas = @"https://example.instructure.com/courses/259102";
+    return [Schedule loadFromDictionary:@{
+        @"canvasHome": @"https://example.instructure.com/",
+        @"term": @{ @"start": @20260909, @"end": @20261220,
+                    @"beforeLabel": @"Classes begin Sep 9" },
+        @"classes": @[
+            @{ @"name": @"Gen Chem", @"code": @"CHEM 1151",
+               @"room": @"Shillman Hall 105", @"days": @[@0, @2, @3],
+               @"start": @"09:15", @"end": @"10:20", @"canvas": canvas },
+            @{ @"name": @"CHEM Recitation", @"code": @"CHEM 1153",
+               @"room": @"Robinson Hall 411", @"days": @[@0],
+               @"start": @"11:45", @"end": @"12:50" },
+            @{ @"name": @"Calculus 2", @"code": @"MATH 1342",
+               @"room": @"Kariotis Hall 110", @"days": @[@0, @2, @3],
+               @"start": @"13:35", @"end": @"14:40" },
+            @{ @"name": @"Creative Writing", @"code": @"CRWT 1170",
+               @"room": @"Online", @"days": @[@0, @2],
+               @"start": @"14:50", @"end": @"16:30",
+               @"zoom": @"https://example.instructure.com/zoom" },
+            @{ @"name": @"Cornerstone 1", @"code": @"GE 1501",
+               @"room": @"Snell 268", @"days": @[@0, @2, @3],
+               @"start": @"16:35", @"end": @"17:40" },
+        ],
+    }];
+}
+
 static NSDate *ISODate(NSString *s) {
     return [ISOFormatter() dateFromString:s];
 }
@@ -49,7 +76,7 @@ static void T2(const char *label, int ymd, int mins, int day,
 int main(int argc, char **argv) {
     @autoreleasepool {
         [NSApplication sharedApplication];
-        gSched = [Schedule loadFromDisk];
+        gSched = FixtureSchedule();
 
         if (argc > 1 && strcmp(argv[1], "--live") == 0) {
             SettingsWindow *sw = [[SettingsWindow alloc] init];
@@ -199,7 +226,7 @@ int main(int argc, char **argv) {
             return 0;
         }
 
-        printf("schedule: %s\n", gSched.loadError ? gSched.loadError.UTF8String : "loaded");
+        printf("schedule: fixture\n");
         for (int d = 0; d < 7; d++) {
             NSArray *l = gSched.byDay[d];
             if (!l.count) continue;
@@ -542,7 +569,6 @@ int main(int argc, char **argv) {
         [sw load];
         [sw.window.contentView layoutSubtreeIfNeeded];
         NSDictionary *rebuilt = [sw buildRoot];
-        NSArray *live = gSched.byDay[0];
         NSMutableArray *mondays = [NSMutableArray array];
         for (NSDictionary *c in rebuilt[@"classes"])
             if ([c[@"days"] containsObject:@0]) [mondays addObject:c];
@@ -553,9 +579,10 @@ int main(int argc, char **argv) {
                       [NSData dataWithContentsOfFile:SchedulePath()]
                       options:0 error:NULL][@"classes"] count] },
             { "no validation problems", [sw problems].count == 0 },
-            { "monday count matches",  mondays.count == live.count },
+            { "monday count matches",  mondays.count ==
+                  [[Schedule loadFromDisk].byDay[0] count] },
             { "term survives",         [rebuilt[@"term"][@"start"] intValue] ==
-                                       gSched.termStart },
+                                       [Schedule loadFromDisk].termStart },
             { "feed field round trips", [rebuilt[@"canvasFeed"] isEqualToString:
                   sw.feedField.stringValue] },
             { "hide toggle round trips", [rebuilt[@"hideDone"] boolValue] ==
@@ -563,6 +590,19 @@ int main(int argc, char **argv) {
             { "both modes are offered",  sw.donePopup.numberOfItems == 2 },
             { "hide toggle is on screen", sw.donePopup.superview != nil &&
                   NSWidth(sw.donePopup.frame) > 0 },
+            { "date pickers are not clipped", NSWidth(sw.startPicker.frame) >= 118 &&
+                  NSWidth(sw.endPicker.frame) >= 118 },
+            { "popup hugs its title",  NSWidth(sw.donePopup.frame) <
+                  NSWidth(sw.donePopup.superview.frame) },
+            { "test button reports nearby", sw.feedStatus.superview != nil &&
+                  sw.feedStatus.superview != sw.statusLabel.superview },
+            { "class cells centre their text", ({
+                  NSView *box = [sw tableView:sw.table
+                           viewForTableColumn:sw.table.tableColumns[0] row:0];
+                  NSTextField *f = (NSTextField *)box.subviews.firstObject;
+                  box.frame = NSMakeRect(0, 0, 120, 22);
+                  [box layoutSubtreeIfNeeded];
+                  fabs(NSMidY(f.frame) - NSMidY(box.bounds)) < 1.0; }) },
             { "restores stage until save", ({ [sw openDoneSheet];
                   NSUInteger before = DoneEntries().count;
                   [sw restoreAll];

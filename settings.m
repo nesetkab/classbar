@@ -62,6 +62,30 @@ static NSDate *DateFromYMD(int ymd) {
     return f;
 }
 
+- (NSView *)infoTip:(NSString *)tip {
+    NSImage *img = [NSImage imageWithSystemSymbolName:@"info.circle"
+                             accessibilityDescription:tip];
+    NSImageView *v = [NSImageView imageViewWithImage:img];
+    v.contentTintColor = [NSColor secondaryLabelColor];
+    v.toolTip = tip;
+    v.imageScaling = NSImageScaleProportionallyDown;
+    [v.widthAnchor constraintEqualToConstant:15].active = YES;
+    [v.heightAnchor constraintEqualToConstant:15].active = YES;
+    return v;
+}
+
+- (NSView *)centeredCell:(NSTextField *)field {
+    NSView *box = [[NSView alloc] init];
+    field.translatesAutoresizingMaskIntoConstraints = NO;
+    [box addSubview:field];
+    [NSLayoutConstraint activateConstraints:@[
+        [field.leadingAnchor constraintEqualToAnchor:box.leadingAnchor constant:2],
+        [field.trailingAnchor constraintEqualToAnchor:box.trailingAnchor constant:-2],
+        [field.centerYAnchor constraintEqualToAnchor:box.centerYAnchor],
+    ]];
+    return box;
+}
+
 - (NSGridView *)formWithRows:(NSArray *)rows fill:(NSIndexSet *)fillRows {
     NSGridView *grid = [NSGridView gridViewWithViews:rows];
     grid.rowSpacing = 10;
@@ -112,6 +136,12 @@ static NSDate *DateFromYMD(int ymd) {
     self.endPicker = [[NSDatePicker alloc] init];
     self.endPicker.datePickerElements = NSDatePickerElementFlagYearMonthDay;
     self.endPicker.datePickerStyle = NSDatePickerStyleTextFieldAndStepper;
+    for (NSDatePicker *picker in @[self.startPicker, self.endPicker]) {
+        [picker.widthAnchor constraintGreaterThanOrEqualToConstant:118].active = YES;
+        [picker setContentCompressionResistancePriority:NSLayoutPriorityRequired
+                                         forOrientation:
+            NSLayoutConstraintOrientationHorizontal];
+    }
 
     self.capField = [NSTextField textFieldWithString:@""];
     self.capField.alignment = NSTextAlignmentRight;
@@ -128,19 +158,26 @@ static NSDate *DateFromYMD(int ymd) {
     self.capStepper.action = @selector(capStepperMoved);
 
     self.donePopup = [[NSPopUpButton alloc] init];
-    [self.donePopup addItemsWithTitles:@[@"Keep at the bottom of the list",
+    [self.donePopup addItemsWithTitles:@[@"Keep at the bottom",
                                          @"Hide from the menu"]];
+    [self.donePopup setContentHuggingPriority:NSLayoutPriorityRequired
+                               forOrientation:NSLayoutConstraintOrientationHorizontal];
+
+    self.feedStatus = [self hintWithText:@""];
+    [self.feedStatus.widthAnchor constraintGreaterThanOrEqualToConstant:110].active = YES;
 
     NSStackView *feedRow = [NSStackView stackViewWithViews:@[
         self.feedField,
-        [self buttonWithTitle:@"Test" action:@selector(refresh)]]];
+        [self infoTip:@"Canvas → Calendar → Calendar Feed"],
+        [self buttonWithTitle:@"Test" action:@selector(refresh)],
+        self.feedStatus]];
     feedRow.spacing = 8;
     [self.feedField setContentHuggingPriority:NSLayoutPriorityDefaultLow
                                forOrientation:NSLayoutConstraintOrientationHorizontal];
 
     NSStackView *termRow = [NSStackView stackViewWithViews:@[
         self.startPicker, [self hintWithText:@"through"], self.endPicker]];
-    termRow.spacing = 8;
+    termRow.spacing = 10;
 
     NSStackView *capRow = [NSStackView stackViewWithViews:@[
         self.capField, self.capStepper,
@@ -154,14 +191,12 @@ static NSDate *DateFromYMD(int ymd) {
 
     NSGridView *canvasForm = [self formWithRows:@[
         @[[self labelWithText:@"Calendar feed"], feedRow],
-        @[[NSGridCell emptyContentView],
-          [self hintWithText:@"Canvas → Calendar → Calendar Feed. Treat it as a password."]],
         @[[self labelWithText:@"Site"], self.homeField],
-    ] fill:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, 3)]];
+    ] fill:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, 2)]];
 
     NSGridView *termForm = [self formWithRows:@[
         @[[self labelWithText:@"Dates"], termRow],
-        @[[self labelWithText:@"Before it starts"], self.beforeField],
+        @[[self labelWithText:@"Message before it starts"], self.beforeField],
     ] fill:[NSIndexSet indexSetWithIndex:1]];
 
     NSGridView *menuForm = [self formWithRows:@[
@@ -196,8 +231,8 @@ static NSDate *DateFromYMD(int ymd) {
     NSStackView *classButtons = [NSStackView stackViewWithViews:@[
         [self buttonWithTitle:@"Add" action:@selector(addClass)],
         [self buttonWithTitle:@"Remove" action:@selector(removeSelected)],
+        [self infoTip:@"Days takes MWF, TuTh, Mon Wed, or M W F"],
         classSpacer,
-        [self hintWithText:@"Days takes MWF, TuTh, or Mon Wed"],
         [self buttonWithTitle:@"Import from .ics…" action:@selector(importICS)],
     ]];
     classButtons.spacing = 8;
@@ -265,6 +300,10 @@ static NSDate *DateFromYMD(int ymd) {
 }
 
 - (void)setStatus:(NSString *)text {
+    self.feedStatus.stringValue = text ?: @"";
+}
+
+- (void)setNote:(NSString *)text {
     self.statusLabel.stringValue = text ?: @"";
 }
 
@@ -319,6 +358,7 @@ static NSDate *DateFromYMD(int ymd) {
     [self.table reloadData];
     [self.table sizeLastColumnToFit];
     [self setStatus:@""];
+    [self setNote:@""];
 }
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tv {
@@ -326,16 +366,36 @@ static NSDate *DateFromYMD(int ymd) {
     return (NSInteger)self.classes.count;
 }
 
+- (NSTextField *)fieldInside:(NSView *)box {
+    return (NSTextField *)box.subviews.firstObject;
+}
+
+- (NSView *)cellFor:(NSTableView *)tv key:(NSString *)key editable:(BOOL)editable {
+    NSView *box = [tv makeViewWithIdentifier:key owner:self];
+    if (box) return box;
+
+    NSTextField *field = editable ? [NSTextField textFieldWithString:@""]
+                                  : [NSTextField labelWithString:@""];
+    field.font = [NSFont systemFontOfSize:12];
+    field.lineBreakMode = NSLineBreakByTruncatingTail;
+    if (editable) {
+        field.bordered = NO;
+        field.drawsBackground = NO;
+        field.target = self;
+        field.action = @selector(cellEdited:);
+    }
+    box = [self centeredCell:field];
+    box.identifier = key;
+    return box;
+}
+
 - (NSView *)tableView:(NSTableView *)tv viewForTableColumn:(NSTableColumn *)column
                   row:(NSInteger)row {
     NSString *key = column.identifier;
+
     if (tv == self.doneTable) {
-        NSTextField *cell = [tv makeViewWithIdentifier:key owner:self];
-        if (!cell) {
-            cell = [NSTextField labelWithString:@""];
-            cell.identifier = key;
-            cell.font = [NSFont systemFontOfSize:12];
-        }
+        NSView *box = [self cellFor:tv key:key editable:NO];
+        NSTextField *cell = [self fieldInside:box];
         NSDictionary *entry = self.doneRows[(NSUInteger)row];
         if ([key isEqualToString:@"doneDue"]) {
             NSDate *due = ParseISO(entry[@"due"]);
@@ -343,22 +403,15 @@ static NSDate *DateFromYMD(int ymd) {
         } else {
             cell.stringValue = [entry[@"name"] length] ? entry[@"name"] : entry[@"key"];
         }
-        return cell;
+        return box;
     }
-    NSTextField *field = [tv makeViewWithIdentifier:key owner:self];
-    if (!field) {
-        field = [NSTextField textFieldWithString:@""];
-        field.identifier = key;
-        field.bordered = NO;
-        field.drawsBackground = NO;
-        field.font = [NSFont systemFontOfSize:12];
-        field.target = self;
-        field.action = @selector(cellEdited:);
-    }
+
+    NSView *box = [self cellFor:tv key:key editable:YES];
+    NSTextField *field = [self fieldInside:box];
     NSDictionary *c = self.classes[(NSUInteger)row];
     field.stringValue = [key isEqualToString:@"days"] ? DaysToText(c[@"days"])
                                                       : (c[key] ?: @"");
-    return field;
+    return box;
 }
 
 - (void)cellEdited:(NSTextField *)sender {
@@ -442,8 +495,8 @@ static NSDate *DateFromYMD(int ymd) {
     if (!self.beforeField.stringValue.length)
         self.beforeField.stringValue = term[@"beforeLabel"] ?: @"";
     [self.table reloadData];
-    [self setStatus:[NSString stringWithFormat:@"Imported %lu classes. Not saved yet.",
-                     (unsigned long)merged.count]];
+    [self setNote:[NSString stringWithFormat:@"Imported %lu classes. Not saved yet.",
+                   (unsigned long)merged.count]];
 }
 
 - (void)reloadDoneRows {
@@ -531,8 +584,8 @@ static NSDate *DateFromYMD(int ymd) {
     [self.pendingRestores addObjectsFromArray:keys];
     [self reloadDoneRows];
     [self.doneTable reloadData];
-    [self setStatus:[NSString stringWithFormat:@"%lu to restore on Save",
-                     (unsigned long)self.pendingRestores.count]];
+    [self setNote:[NSString stringWithFormat:@"%lu to restore on Save",
+                   (unsigned long)self.pendingRestores.count]];
 }
 
 - (void)restoreSelected {
@@ -558,8 +611,34 @@ static NSDate *DateFromYMD(int ymd) {
 }
 
 - (void)refresh {
-    if (self.target && self.refreshAction)
-        ((void (*)(id, SEL))objc_msgSend)(self.target, self.refreshAction);
+    NSURL *url = FeedURL(self.feedField.stringValue);
+    if (!url) {
+        [self setStatus:self.feedField.stringValue.length ? @"Not a URL"
+                                                          : @"No feed URL yet"];
+        return;
+    }
+
+    [self setStatus:@"Testing…"];
+    NSString *home = self.homeField.stringValue;
+    NSURLRequest *req = [NSURLRequest requestWithURL:url
+                                        cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
+                                    timeoutInterval:20];
+    __weak SettingsWindow *weak = self;
+    [[[NSURLSession sharedSession] dataTaskWithRequest:req
+        completionHandler:^(NSData *data, NSURLResponse *resp, NSError *err) {
+        NSInteger code = [resp isKindOfClass:[NSHTTPURLResponse class]]
+                       ? [(NSHTTPURLResponse *)resp statusCode] : 200;
+        NSString *body = (data && !err && code < 400)
+            ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
+        NSUInteger found = body ? cb_ics_items(body, home).count : 0;
+        NSString *note;
+        if (err) note = @"No reply";
+        else if (code >= 400) note = [NSString stringWithFormat:@"Canvas said %ld",
+                                      (long)code];
+        else if (!found) note = @"Reached it, no assignments";
+        else note = [NSString stringWithFormat:@"%lu assignments", (unsigned long)found];
+        dispatch_async(dispatch_get_main_queue(), ^{ [weak setStatus:note]; });
+    }] resume];
 }
 
 - (NSArray *)problems {
@@ -628,7 +707,7 @@ static NSDate *DateFromYMD(int ymd) {
         [self.pendingRestores removeAllObjects];
     }
 
-    [self setStatus:@"Saved"];
+    [self setNote:@"Saved"];
     if (self.target && self.savedAction)
         ((void (*)(id, SEL))objc_msgSend)(self.target, self.savedAction);
 }

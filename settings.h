@@ -17,6 +17,7 @@
 @property (strong) NSMutableSet *pendingRestores;
 @property (strong) NSTableView *table;
 @property (strong) NSTextField *statusLabel;
+@property (strong) NSTextField *feedStatus;
 @property (weak)   id target;
 @property (assign) SEL savedAction;
 @property (assign) SEL refreshAction;

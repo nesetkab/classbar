@@ -241,11 +241,8 @@ static const NSTimeInterval kStaleSeconds = 300;
         return;
     }
 
-    NSString *https = [feed hasPrefix:@"webcal://"]
-        ? [@"https://" stringByAppendingString:[feed substringFromIndex:9]]
-        : feed;
-    NSURL *url = [NSURL URLWithString:https];
-    if (!url.host) {
+    NSURL *url = FeedURL(feed);
+    if (!url) {
         [self setFooterStatus:@"Bad feed URL"];
         return;
     }

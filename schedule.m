@@ -14,26 +14,30 @@ int ParseClock(NSString *s) {
 @implementation Schedule
 
 + (instancetype)loadFromDisk {
+    NSData *d = [NSData dataWithContentsOfFile:SchedulePath()];
+    if (!d) return [self failedWith:@"No schedule.json"];
+    NSError *err = nil;
+    id root = [NSJSONSerialization JSONObjectWithData:d options:0 error:&err];
+    if (![root isKindOfClass:[NSDictionary class]])
+        return [self failedWith:err ? @"schedule.json is not valid JSON"
+                                    : @"schedule.json is malformed"];
+    return [self loadFromDictionary:root];
+}
+
++ (instancetype)failedWith:(NSString *)message {
+    Schedule *s = [[Schedule alloc] init];
+    s.loadError = message;
+    s.byDay = @[@[], @[], @[], @[], @[], @[], @[]];
+    return s;
+}
+
++ (instancetype)loadFromDictionary:(NSDictionary *)root {
     Schedule *s = [[Schedule alloc] init];
     s.canvasHome = @"https://canvas.instructure.com/";
     s.termStart = 0;
     s.termEnd = 99999999;
     s.beforeLabel = @"Term hasn't started";
     s.assignmentCap = kDefaultAssignmentCap;
-
-    NSData *d = [NSData dataWithContentsOfFile:SchedulePath()];
-    if (!d) {
-        s.loadError = @"No schedule.json";
-        s.byDay = @[@[], @[], @[], @[], @[], @[], @[]];
-        return s;
-    }
-    NSError *err = nil;
-    id root = [NSJSONSerialization JSONObjectWithData:d options:0 error:&err];
-    if (![root isKindOfClass:[NSDictionary class]]) {
-        s.loadError = err ? @"schedule.json is not valid JSON" : @"schedule.json is malformed";
-        s.byDay = @[@[], @[], @[], @[], @[], @[], @[]];
-        return s;
-    }
 
     if ([root[@"canvasHome"] isKindOfClass:[NSString class]]) s.canvasHome = root[@"canvasHome"];
     if ([root[@"canvasFeed"] isKindOfClass:[NSString class]]) s.canvasFeed = root[@"canvasFeed"];

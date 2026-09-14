@@ -124,6 +124,16 @@ NSString *Clip(NSString *s, NSUInteger n) {
     return [[s substringToIndex:n - 1] stringByAppendingString:@"…"];
 }
 
+NSURL *FeedURL(NSString *raw) {
+    NSString *feed = [raw stringByTrimmingCharactersInSet:
+        [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (!feed.length) return nil;
+    if ([feed hasPrefix:@"webcal://"])
+        feed = [@"https://" stringByAppendingString:[feed substringFromIndex:9]];
+    NSURL *url = [NSURL URLWithString:feed];
+    return url.host ? url : nil;
+}
+
 NSString *DonePath(void) {
     return [NSHomeDirectory() stringByAppendingPathComponent:
             @"Library/Application Support/classbar/done.json"];

@@ -13,6 +13,7 @@ extern const char * const kDayName[7];
 @property (assign) BOOL hideDone;
 @property (copy)   NSString *loadError;
 + (instancetype)loadFromDisk;
++ (instancetype)loadFromDictionary:(NSDictionary *)root;
 @end
 
 int ParseClock(NSString *s);
