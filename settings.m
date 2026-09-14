@@ -6,6 +6,8 @@
 #import "schedule.h"
 #import "store.h"
 
+static const CGFloat kLabelColumnWidth = 132.0;
+
 static NSDate *DateFromYMD(int ymd) {
     NSDateComponents *c = [[NSDateComponents alloc] init];
     c.year = ymd / 10000;
@@ -47,15 +49,53 @@ static NSDate *DateFromYMD(int ymd) {
     return c;
 }
 
+- (NSTextField *)sectionHeading:(NSString *)text {
+    NSTextField *f = [NSTextField labelWithString:text];
+    f.font = [NSFont systemFontOfSize:13 weight:NSFontWeightSemibold];
+    return f;
+}
+
+- (NSTextField *)hintWithText:(NSString *)text {
+    NSTextField *f = [NSTextField labelWithString:text];
+    f.font = [NSFont systemFontOfSize:11];
+    f.textColor = [NSColor secondaryLabelColor];
+    return f;
+}
+
+- (NSGridView *)formWithRows:(NSArray *)rows fill:(NSIndexSet *)fillRows {
+    NSGridView *grid = [NSGridView gridViewWithViews:rows];
+    grid.rowSpacing = 10;
+    grid.columnSpacing = 10;
+    [grid columnAtIndex:0].width = kLabelColumnWidth;
+    [grid columnAtIndex:0].xPlacement = NSGridCellPlacementTrailing;
+    [grid columnAtIndex:1].xPlacement = NSGridCellPlacementLeading;
+    for (NSInteger i = 0; i < grid.numberOfRows; i++) {
+        [grid rowAtIndex:i].rowAlignment = NSGridRowAlignmentFirstBaseline;
+        if ([fillRows containsIndex:(NSUInteger)i])
+            [grid cellAtColumnIndex:1 rowIndex:i].xPlacement = NSGridCellPlacementFill;
+    }
+    return grid;
+}
+
+- (NSStackView *)sectionWithHeading:(NSString *)heading body:(NSView *)body {
+    NSStackView *v = [NSStackView stackViewWithViews:@[
+        [self sectionHeading:heading], body]];
+    v.orientation = NSUserInterfaceLayoutOrientationVertical;
+    v.alignment = NSLayoutAttributeLeading;
+    v.spacing = 8;
+    return v;
+}
+
 - (void)buildWindow {
     self.window = [[NSWindow alloc]
-        initWithContentRect:NSMakeRect(0, 0, 1000, 620)
+        initWithContentRect:NSMakeRect(0, 0, 960, 700)
                   styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskClosable |
                             NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable
                     backing:NSBackingStoreBuffered
                       defer:NO];
     self.window.title = @"ClassBar Settings";
     self.window.releasedWhenClosed = NO;
+    self.window.minSize = NSMakeSize(820, 560);
     [self.window center];
 
     self.feedField = [NSTextField textFieldWithString:@""];
@@ -77,7 +117,7 @@ static NSDate *DateFromYMD(int ymd) {
     self.capField.alignment = NSTextAlignmentRight;
     self.capField.target = self;
     self.capField.action = @selector(capFieldEdited);
-    [self.capField.widthAnchor constraintEqualToConstant:56].active = YES;
+    [self.capField.widthAnchor constraintEqualToConstant:52].active = YES;
 
     self.capStepper = [[NSStepper alloc] init];
     self.capStepper.minValue = kMinAssignmentCap;
@@ -87,105 +127,136 @@ static NSDate *DateFromYMD(int ymd) {
     self.capStepper.target = self;
     self.capStepper.action = @selector(capStepperMoved);
 
-    self.hideDoneCheck = [NSButton checkboxWithTitle:@"Hide completed assignments"
-                                              target:nil action:NULL];
+    self.donePopup = [[NSPopUpButton alloc] init];
+    [self.donePopup addItemsWithTitles:@[@"Keep at the bottom of the list",
+                                         @"Hide from the menu"]];
 
-    NSTextField *capSuffix = [NSTextField labelWithString:
-        @"rows in the menu, shared with completed work"];
-    capSuffix.textColor = [NSColor secondaryLabelColor];
+    NSStackView *feedRow = [NSStackView stackViewWithViews:@[
+        self.feedField,
+        [self buttonWithTitle:@"Test" action:@selector(refresh)]]];
+    feedRow.spacing = 8;
+    [self.feedField setContentHuggingPriority:NSLayoutPriorityDefaultLow
+                               forOrientation:NSLayoutConstraintOrientationHorizontal];
+
+    NSStackView *termRow = [NSStackView stackViewWithViews:@[
+        self.startPicker, [self hintWithText:@"through"], self.endPicker]];
+    termRow.spacing = 8;
 
     NSStackView *capRow = [NSStackView stackViewWithViews:@[
-        self.capField, self.capStepper, capSuffix]];
+        self.capField, self.capStepper,
+        [self hintWithText:@"including completed work"]]];
     capRow.spacing = 6;
 
-    NSStackView *doneRow = [NSStackView stackViewWithViews:@[
-        self.hideDoneCheck,
+    NSStackView *doneCol = [NSStackView stackViewWithViews:@[
+        self.donePopup,
         [self buttonWithTitle:@"Restore…" action:@selector(openDoneSheet)]]];
-    doneRow.spacing = 10;
+    doneCol.spacing = 8;
 
-    NSGridView *grid = [NSGridView gridViewWithViews:@[
-        @[[self labelWithText:@"Canvas feed URL"], self.feedField],
-        @[[self labelWithText:@"Canvas home"], self.homeField],
-        @[[self labelWithText:@"Term starts"], self.startPicker],
-        @[[self labelWithText:@"Term ends"], self.endPicker],
-        @[[self labelWithText:@"Before term"], self.beforeField],
-        @[[self labelWithText:@"Show at most"], capRow],
-        @[[self labelWithText:@"Completed"], doneRow],
-    ]];
-    grid.rowSpacing = 8;
-    grid.columnSpacing = 10;
-    [grid columnAtIndex:0].width = 130;
-    [grid columnAtIndex:0].xPlacement = NSGridCellPlacementTrailing;
-    [grid columnAtIndex:1].xPlacement = NSGridCellPlacementFill;
-    for (NSNumber *row in @[@2, @3, @5, @6])
-        [grid cellAtColumnIndex:1 rowIndex:row.integerValue].xPlacement =
-            NSGridCellPlacementLeading;
+    NSGridView *canvasForm = [self formWithRows:@[
+        @[[self labelWithText:@"Calendar feed"], feedRow],
+        @[[NSGridCell emptyContentView],
+          [self hintWithText:@"Canvas → Calendar → Calendar Feed. Treat it as a password."]],
+        @[[self labelWithText:@"Site"], self.homeField],
+    ] fill:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, 3)]];
+
+    NSGridView *termForm = [self formWithRows:@[
+        @[[self labelWithText:@"Dates"], termRow],
+        @[[self labelWithText:@"Before it starts"], self.beforeField],
+    ] fill:[NSIndexSet indexSetWithIndex:1]];
+
+    NSGridView *menuForm = [self formWithRows:@[
+        @[[self labelWithText:@"Assignment rows"], capRow],
+        @[[self labelWithText:@"Completed work"], doneCol],
+    ] fill:[NSIndexSet indexSet]];
 
     self.table = [[NSTableView alloc] init];
     self.table.dataSource = self;
     self.table.delegate = self;
     self.table.allowsMultipleSelection = YES;
     self.table.usesAlternatingRowBackgroundColors = YES;
-    self.table.columnAutoresizingStyle = NSTableViewNoColumnAutoresizing;
-    for (NSArray *spec in @[ @[@"name", @"Name", @160], @[@"code", @"Code", @80],
-                             @[@"room", @"Room", @140], @[@"days", @"Days", @120],
-                             @[@"start", @"Start", @60], @[@"end", @"End", @60],
-                             @[@"canvas", @"Canvas link", @170],
-                             @[@"zoom", @"Zoom link", @170] ])
+    self.table.columnAutoresizingStyle = NSTableViewLastColumnOnlyAutoresizingStyle;
+    self.table.rowHeight = 22;
+    for (NSArray *spec in @[ @[@"name", @"Name", @144], @[@"code", @"Code", @80],
+                             @[@"room", @"Room", @128], @[@"days", @"Days", @104],
+                             @[@"start", @"Start", @54], @[@"end", @"End", @54],
+                             @[@"canvas", @"Canvas link", @148],
+                             @[@"zoom", @"Zoom link", @126] ])
         [self.table addTableColumn:[self columnWithId:spec[0] title:spec[1]
                                                 width:[spec[2] doubleValue]]];
 
     NSScrollView *scroll = [[NSScrollView alloc] init];
     scroll.documentView = self.table;
     scroll.hasVerticalScroller = YES;
-    scroll.hasHorizontalScroller = YES;
+    scroll.hasHorizontalScroller = NO;
     scroll.borderType = NSBezelBorder;
+
+    NSView *classSpacer = [[NSView alloc] init];
+    [classSpacer setContentHuggingPriority:NSLayoutPriorityDefaultLow
+                            forOrientation:NSLayoutConstraintOrientationHorizontal];
+    NSStackView *classButtons = [NSStackView stackViewWithViews:@[
+        [self buttonWithTitle:@"Add" action:@selector(addClass)],
+        [self buttonWithTitle:@"Remove" action:@selector(removeSelected)],
+        classSpacer,
+        [self hintWithText:@"Days takes MWF, TuTh, or Mon Wed"],
+        [self buttonWithTitle:@"Import from .ics…" action:@selector(importICS)],
+    ]];
+    classButtons.spacing = 8;
+
+    NSStackView *classBody = [NSStackView stackViewWithViews:@[scroll, classButtons]];
+    classBody.orientation = NSUserInterfaceLayoutOrientationVertical;
+    classBody.alignment = NSLayoutAttributeLeading;
+    classBody.spacing = 8;
 
     self.statusLabel = [NSTextField labelWithString:@""];
     self.statusLabel.textColor = [NSColor secondaryLabelColor];
     self.statusLabel.font = [NSFont systemFontOfSize:11];
 
-    NSView *spacer = [[NSView alloc] init];
-    [spacer setContentHuggingPriority:NSLayoutPriorityDefaultLow
-                       forOrientation:NSLayoutConstraintOrientationHorizontal];
+    NSView *footSpacer = [[NSView alloc] init];
+    [footSpacer setContentHuggingPriority:NSLayoutPriorityDefaultLow
+                           forOrientation:NSLayoutConstraintOrientationHorizontal];
 
     NSButton *save = [self buttonWithTitle:@"Save" action:@selector(save)];
     save.keyEquivalent = @"\r";
+    NSButton *revert = [self buttonWithTitle:@"Revert" action:@selector(load)];
 
-    NSStackView *buttons = [NSStackView stackViewWithViews:@[
-        [self buttonWithTitle:@"Add Class" action:@selector(addClass)],
-        [self buttonWithTitle:@"Remove" action:@selector(removeSelected)],
-        [self buttonWithTitle:@"Import from .ics…" action:@selector(importICS)],
-        spacer,
-        self.statusLabel,
-        [self buttonWithTitle:@"Refresh Assignments" action:@selector(refresh)],
-        save,
+    NSStackView *footer = [NSStackView stackViewWithViews:@[
+        self.statusLabel, footSpacer, revert, save]];
+    footer.spacing = 8;
+
+    NSStackView *root = [NSStackView stackViewWithViews:@[
+        [self sectionWithHeading:@"Canvas" body:canvasForm],
+        [self sectionWithHeading:@"Term" body:termForm],
+        [self sectionWithHeading:@"Menu" body:menuForm],
+        [self sectionWithHeading:@"Classes" body:classBody],
+        footer,
     ]];
-    buttons.spacing = 8;
-
-    NSTextField *heading = [NSTextField labelWithString:@"Classes"];
-    heading.font = [NSFont systemFontOfSize:13 weight:NSFontWeightSemibold];
-
-    NSStackView *root = [NSStackView stackViewWithViews:@[grid, heading, scroll, buttons]];
     root.orientation = NSUserInterfaceLayoutOrientationVertical;
     root.alignment = NSLayoutAttributeLeading;
-    root.spacing = 12;
-    root.edgeInsets = NSEdgeInsetsMake(18, 18, 18, 18);
+    root.spacing = 20;
+    root.edgeInsets = NSEdgeInsetsMake(20, 20, 20, 20);
     root.translatesAutoresizingMaskIntoConstraints = NO;
+    [root setHuggingPriority:NSLayoutPriorityDefaultHigh
+              forOrientation:NSLayoutConstraintOrientationVertical];
 
     NSView *content = self.window.contentView;
     [content addSubview:root];
-    [NSLayoutConstraint activateConstraints:@[
+    NSMutableArray *rules = [NSMutableArray arrayWithArray:@[
         [root.topAnchor constraintEqualToAnchor:content.topAnchor],
         [root.bottomAnchor constraintEqualToAnchor:content.bottomAnchor],
         [root.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
         [root.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
-        [grid.widthAnchor constraintEqualToAnchor:root.widthAnchor constant:-36],
-        [scroll.widthAnchor constraintEqualToAnchor:root.widthAnchor constant:-36],
-        [buttons.widthAnchor constraintEqualToAnchor:root.widthAnchor constant:-36],
-        [scroll.heightAnchor constraintGreaterThanOrEqualToConstant:300],
+        [scroll.heightAnchor constraintGreaterThanOrEqualToConstant:190],
     ]];
+    for (NSView *v in @[canvasForm, termForm, menuForm, classBody, footer,
+                        scroll, classButtons])
+        [rules addObject:[v.widthAnchor constraintEqualToAnchor:root.widthAnchor
+                                                       constant:-40]];
+    for (NSView *v in root.arrangedSubviews)
+        [rules addObject:[v.widthAnchor constraintEqualToAnchor:root.widthAnchor
+                                                       constant:-40]];
+    [NSLayoutConstraint activateConstraints:rules];
 }
+
 
 - (void)show {
     [self load];
@@ -222,8 +293,7 @@ static NSDate *DateFromYMD(int ymd) {
         ? root[@"canvasHome"] : @"";
     [self setCap:[root[@"assignmentCap"] isKindOfClass:[NSNumber class]]
         ? [root[@"assignmentCap"] intValue] : kDefaultAssignmentCap];
-    self.hideDoneCheck.state = [root[@"hideDone"] boolValue] ? NSControlStateValueOn
-                                                             : NSControlStateValueOff;
+    [self.donePopup selectItemAtIndex:[root[@"hideDone"] boolValue] ? 1 : 0];
 
     NSDictionary *term = [root[@"term"] isKindOfClass:[NSDictionary class]]
         ? root[@"term"] : @{};
@@ -247,6 +317,7 @@ static NSDate *DateFromYMD(int ymd) {
     }
     [self.pendingRestores removeAllObjects];
     [self.table reloadData];
+    [self.table sizeLastColumnToFit];
     [self setStatus:@""];
 }
 
@@ -399,10 +470,13 @@ static NSDate *DateFromYMD(int ymd) {
         self.doneTable.delegate = self;
         self.doneTable.allowsMultipleSelection = YES;
         self.doneTable.usesAlternatingRowBackgroundColors = YES;
+        self.doneTable.columnAutoresizingStyle =
+            NSTableViewLastColumnOnlyAutoresizingStyle;
+        self.doneTable.rowHeight = 22;
+        [self.doneTable addTableColumn:[self columnWithId:@"doneDue"
+                                                    title:@"Due" width:110]];
         [self.doneTable addTableColumn:[self columnWithId:@"doneName"
                                                     title:@"Assignment" width:300]];
-        [self.doneTable addTableColumn:[self columnWithId:@"doneDue"
-                                                    title:@"Due" width:120]];
 
         NSScrollView *scroll = [[NSScrollView alloc] init];
         scroll.documentView = self.doneTable;
@@ -419,7 +493,9 @@ static NSDate *DateFromYMD(int ymd) {
         NSStackView *buttons = [NSStackView stackViewWithViews:@[
             [self buttonWithTitle:@"Restore Selected" action:@selector(restoreSelected)],
             [self buttonWithTitle:@"Restore All" action:@selector(restoreAll)],
-            spacer, close]];
+            spacer,
+            [self hintWithText:@"Applied when you press Save"],
+            close]];
         buttons.spacing = 8;
 
         NSStackView *root = [NSStackView stackViewWithViews:@[scroll, buttons]];
@@ -442,6 +518,7 @@ static NSDate *DateFromYMD(int ymd) {
     }
 
     [self.doneTable reloadData];
+    [self.doneTable sizeLastColumnToFit];
     [self.window beginSheet:self.doneSheet completionHandler:nil];
 }
 
@@ -517,7 +594,7 @@ static NSDate *DateFromYMD(int ymd) {
         @"canvasHome": self.homeField.stringValue,
         @"canvasFeed": self.feedField.stringValue,
         @"assignmentCap": @(ClampCap(self.capField.intValue)),
-        @"hideDone": @(self.hideDoneCheck.state == NSControlStateValueOn),
+        @"hideDone": @(self.donePopup.indexOfSelectedItem == 1),
         @"term": @{ @"start": @(YMD(self.startPicker.dateValue)),
                     @"end": @(YMD(self.endPicker.dateValue)),
                     @"beforeLabel": self.beforeField.stringValue },

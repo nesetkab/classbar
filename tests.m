@@ -51,6 +51,22 @@ int main(int argc, char **argv) {
         [NSApplication sharedApplication];
         gSched = [Schedule loadFromDisk];
 
+        if (argc > 1 && strcmp(argv[1], "--live") == 0) {
+            SettingsWindow *sw = [[SettingsWindow alloc] init];
+            [sw load];
+            if (sw.feedField.stringValue.length)
+                sw.feedField.stringValue = @"https://redacted.instructure.com/feeds/…";
+            [NSApp setActivationPolicy:NSApplicationActivationPolicyRegular];
+            [NSApp activateIgnoringOtherApps:YES];
+            [sw.window makeKeyAndOrderFront:nil];
+            if (argc > 2 && strcmp(argv[2], "done") == 0) [sw openDoneSheet];
+            printf("window %ld\n", (long)sw.window.windowNumber);
+            fflush(stdout);
+            [[NSRunLoop currentRunLoop] runUntilDate:
+                [NSDate dateWithTimeIntervalSinceNow:25]];
+            return 0;
+        }
+
         if (argc > 2 && strcmp(argv[1], "--rows") == 0) {
             NSArray *rows = @[ @[@"today 11:59p", @"Chapter 5: Problem Definition", @0, @0],
                                @[@"tmr 9:15a", @"Reading guide 3.8 - 3.12", @0, @0],
@@ -524,6 +540,7 @@ int main(int argc, char **argv) {
         printf("\nsettings round trip\n");
         SettingsWindow *sw = [[SettingsWindow alloc] init];
         [sw load];
+        [sw.window.contentView layoutSubtreeIfNeeded];
         NSDictionary *rebuilt = [sw buildRoot];
         NSArray *live = gSched.byDay[0];
         NSMutableArray *mondays = [NSMutableArray array];
@@ -542,9 +559,10 @@ int main(int argc, char **argv) {
             { "feed field round trips", [rebuilt[@"canvasFeed"] isEqualToString:
                   sw.feedField.stringValue] },
             { "hide toggle round trips", [rebuilt[@"hideDone"] boolValue] ==
-                  (sw.hideDoneCheck.state == NSControlStateValueOn) },
-            { "hide toggle is on screen", sw.hideDoneCheck.superview != nil &&
-                  NSWidth(sw.hideDoneCheck.frame) > 0 },
+                  (sw.donePopup.indexOfSelectedItem == 1) },
+            { "both modes are offered",  sw.donePopup.numberOfItems == 2 },
+            { "hide toggle is on screen", sw.donePopup.superview != nil &&
+                  NSWidth(sw.donePopup.frame) > 0 },
             { "restores stage until save", ({ [sw openDoneSheet];
                   NSUInteger before = DoneEntries().count;
                   [sw restoreAll];
