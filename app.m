@@ -89,11 +89,15 @@ static const NSTimeInterval kStaleSeconds = 300;
             ![self.sessionMarks containsObject:key]) continue;
         [(done ? finished : todo) addObject:a];
     }
-    NSMutableArray *ordered = [NSMutableArray arrayWithArray:todo];
-    [ordered addObjectsFromArray:finished];
+    NSUInteger todoSlots = 0, doneSlots = 0;
+    SplitAssignmentCap(todo.count, finished.count,
+                       (NSUInteger)self.schedule.assignmentCap,
+                       &todoSlots, &doneSlots);
+
+    NSMutableArray *ordered = [NSMutableArray array];
+    [ordered addObjectsFromArray:[todo subarrayWithRange:NSMakeRange(0, todoSlots)]];
+    [ordered addObjectsFromArray:[finished subarrayWithRange:NSMakeRange(0, doneSlots)]];
     NSArray *up = ordered;
-    if ((int)up.count > self.schedule.assignmentCap)
-        up = [up subarrayWithRange:NSMakeRange(0, (NSUInteger)self.schedule.assignmentCap)];
 
     NSDictionary *rowFont = @{ NSFontAttributeName: NameFont() };
     CGFloat nameMax = 0, dueMax = 0;

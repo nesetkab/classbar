@@ -22,6 +22,15 @@ int ClampCap(int n) {
     return n;
 }
 
+void SplitAssignmentCap(NSUInteger todo, NSUInteger done, NSUInteger cap,
+                        NSUInteger *todoShown, NSUInteger *doneShown) {
+    NSUInteger forDone = MIN(done, cap / 2);
+    NSUInteger forTodo = MIN(todo, cap - forDone);
+    if (forTodo + forDone < cap) forDone = MIN(done, cap - forTodo);
+    *todoShown = forTodo;
+    *doneShown = forDone;
+}
+
 NSString *HHMMshort(int m) {
     int h24 = m / 60, mm = m % 60;
     int h = h24 % 12; if (h == 0) h = 12;

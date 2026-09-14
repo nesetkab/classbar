@@ -8,6 +8,8 @@ extern const int kCacheAssignmentCap;
 NSString *SchedulePath(void);
 NSString *CachePath(void);
 int ClampCap(int n);
+void SplitAssignmentCap(NSUInteger todo, NSUInteger done, NSUInteger cap,
+                        NSUInteger *todoShown, NSUInteger *doneShown);
 NSString *HHMMshort(int m);
 
 NSISO8601DateFormatter *ISOFormatter(void);

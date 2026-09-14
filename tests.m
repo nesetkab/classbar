@@ -271,6 +271,28 @@ int main(int argc, char **argv) {
             printf("  %-4s %s\n", doneChecks[i].ok ? "ok" : "FAIL", doneChecks[i].label);
         }
 
+        printf("\ncap split between todo and done\n");
+        struct { const char *label; NSUInteger todo, done, cap, wantTodo, wantDone; } splits[] = {
+            { "few of each fit",            6,  2, 10, 6, 2 },
+            { "done keeps the bottom rows", 17, 2, 10, 8, 2 },
+            { "done backfills spare rows",  2, 20, 10, 2, 8 },
+            { "done is halved when busy",  20, 20, 10, 5, 5 },
+            { "no done work",               17, 0, 10, 10, 0 },
+            { "nothing pending",            0,  3, 10, 0, 3 },
+            { "empty",                      0,  0, 10, 0, 0 },
+            { "cap of one favours todo",    5,  5,  1, 1, 0 },
+            { "under cap shows all",        3,  1, 10, 3, 1 },
+        };
+        for (size_t i = 0; i < sizeof(splits) / sizeof(splits[0]); i++) {
+            NSUInteger a = 0, b = 0;
+            SplitAssignmentCap(splits[i].todo, splits[i].done, splits[i].cap, &a, &b);
+            BOOL ok = a == splits[i].wantTodo && b == splits[i].wantDone &&
+                      a + b <= splits[i].cap;
+            if (!ok) fails++;
+            printf("  %-4s %-28s %lu todo + %lu done\n", ok ? "ok" : "FAIL",
+                   splits[i].label, (unsigned long)a, (unsigned long)b);
+        }
+
         printf("\ntooltip shape\n");
         NSString *classTip = cb_series(gSched, 20260915, 700, 1, 1)[0][@"tip"];
         NSString *itemTip = TipText(@"Chapter 5: Problem Definition",
