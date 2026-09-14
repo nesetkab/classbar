@@ -46,7 +46,7 @@ void TipHide(void) {
     [gTipPanel orderOut:nil];
 }
 
-static void TipShow(NSString *text, NSRect anchor) {
+static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
     if (!text.length) { TipHide(); return; }
 
     if (!gTipPanel) {
@@ -90,22 +90,104 @@ static void TipShow(NSString *text, NSRect anchor) {
     ts.height = ceil(ts.height);
     gTipLabel.frame = NSMakeRect(9, 6, ts.width, ts.height);
 
-    NSRect frame = NSMakeRect(NSMinX(anchor) - 8 - (ts.width + 18),
-                              NSMidY(anchor) - (ts.height + 12) * 0.5,
-                              ts.width + 18, ts.height + 12);
+    CGFloat w = ts.width + 18, h = ts.height + 12;
+    NSRect frame = NSMakeRect(preferRight ? NSMaxX(anchor) + 8
+                                          : NSMinX(anchor) - 8 - w,
+                              NSMidY(anchor) - h * 0.5, w, h);
 
     NSScreen *scr = [NSScreen mainScreen];
     for (NSScreen *s in [NSScreen screens])
         if (NSIntersectsRect(s.frame, anchor)) { scr = s; break; }
     NSRect vis = scr.visibleFrame;
     if (NSMinX(frame) < NSMinX(vis) + 6) frame.origin.x = NSMaxX(anchor) + 8;
-    if (NSMaxX(frame) > NSMaxX(vis) - 6) frame.origin.x = NSMaxX(vis) - 6 - NSWidth(frame);
+    if (NSMaxX(frame) > NSMaxX(vis) - 6)
+        frame.origin.x = NSMinX(anchor) - 8 - NSWidth(frame);
+    if (NSMinX(frame) < NSMinX(vis) + 6) frame.origin.x = NSMinX(vis) + 6;
     if (NSMinY(frame) < NSMinY(vis) + 6) frame.origin.y = NSMinY(vis) + 6;
     if (NSMaxY(frame) > NSMaxY(vis) - 6) frame.origin.y = NSMaxY(vis) - 6 - NSHeight(frame);
 
     [gTipPanel setFrame:frame display:NO];
     [gTipPanel orderFrontRegardless];
 }
+
+static __weak InfoTipView *gPinnedInfo;
+
+@implementation InfoTipView
+
+- (NSSize)intrinsicContentSize {
+    return NSMakeSize(16, 16);
+}
+
+- (void)showTipNow {
+    self.tipShown = YES;
+    TipShowNear(self.tip, [self.window convertRectToScreen:
+        [self convertRect:self.bounds toView:nil]], YES);
+    self.needsDisplay = YES;
+}
+
+- (void)unpin {
+    if (gPinnedInfo == self) gPinnedInfo = nil;
+    self.pinned = NO;
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [self cancelTip];
+    self.needsDisplay = YES;
+}
+
+- (void)windowLostFocus:(NSNotification *)note __unused {
+    [self unpin];
+}
+
+- (void)mouseDown:(NSEvent *)e __unused {
+    if (self.pinned) { [self unpin]; return; }
+
+    [gPinnedInfo unpin];
+    self.pinned = YES;
+    gPinnedInfo = self;
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self selector:@selector(windowLostFocus:)
+               name:NSWindowDidResignKeyNotification object:self.window];
+    [self showTipNow];
+}
+
+- (void)syncHoverAt:(NSPoint)pt __unused {
+    if (!self.hovered) { self.hovered = YES; self.needsDisplay = YES; }
+    if (!self.tipShown) [self showTipNow];
+}
+
+- (void)mouseExited:(NSEvent *)e {
+    self.hovered = NO;
+    self.needsDisplay = YES;
+    if (!self.pinned) [super mouseExited:e];
+}
+
+- (void)viewDidMoveToWindow {
+    [super viewDidMoveToWindow];
+    if (!self.window) [self unpin];
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+- (void)drawRect:(NSRect)dirty __unused {
+    NSColor *ink = (self.hovered || self.pinned) ? [NSColor labelColor]
+                                                 : [NSColor tertiaryLabelColor];
+    DrawSymbol(@"info.circle", 12, ink, self.bounds);
+}
+
+- (BOOL)isAccessibilityElement {
+    return YES;
+}
+
+- (NSAccessibilityRole)accessibilityRole {
+    return NSAccessibilityButtonRole;
+}
+
+- (NSString *)accessibilityLabel {
+    return self.tip;
+}
+
+@end
 
 @interface CardView : HoverTipView
 @property (copy) NSString *title;
@@ -146,8 +228,8 @@ static void TipShow(NSString *text, NSRect anchor) {
         me.tipTimer = nil;
         if (!me.window || !me.hovered) return;
         me.tipShown = YES;
-        TipShow(me.tip, [me.window convertRectToScreen:
-                            [me convertRect:me.bounds toView:nil]]);
+        TipShowNear(me.tip, [me.window convertRectToScreen:
+                        [me convertRect:me.bounds toView:nil]], NO);
     }];
     [[NSRunLoop currentRunLoop] addTimer:self.tipTimer forMode:NSRunLoopCommonModes];
 }

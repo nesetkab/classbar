@@ -2,6 +2,7 @@
 #import <objc/message.h>
 #import <UniformTypeIdentifiers/UniformTypeIdentifiers.h>
 #import "settings.h"
+#import "views.h"
 #import "ics.h"
 #import "schedule.h"
 #import "store.h"
@@ -63,14 +64,10 @@ static NSDate *DateFromYMD(int ymd) {
 }
 
 - (NSView *)infoTip:(NSString *)tip {
-    NSImage *img = [NSImage imageWithSystemSymbolName:@"info.circle"
-                             accessibilityDescription:tip];
-    NSImageView *v = [NSImageView imageViewWithImage:img];
-    v.contentTintColor = [NSColor secondaryLabelColor];
-    v.toolTip = tip;
-    v.imageScaling = NSImageScaleProportionallyDown;
-    [v.widthAnchor constraintEqualToConstant:15].active = YES;
-    [v.heightAnchor constraintEqualToConstant:15].active = YES;
+    InfoTipView *v = [[InfoTipView alloc] initWithFrame:NSMakeRect(0, 0, 16, 16)];
+    v.tip = tip;
+    [v.widthAnchor constraintEqualToConstant:16].active = YES;
+    [v.heightAnchor constraintEqualToConstant:16].active = YES;
     return v;
 }
 

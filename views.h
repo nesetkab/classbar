@@ -13,6 +13,10 @@ extern const CGFloat kDoneCircleWidth;
 - (void)syncHoverAt:(NSPoint)pt;
 @end
 
+@interface InfoTipView : HoverTipView
+@property (assign) BOOL pinned;
+@end
+
 @interface AssignmentView : HoverTipView
 @property (copy) NSString *due;
 @property (copy) NSString *name;

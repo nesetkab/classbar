@@ -596,6 +596,22 @@ int main(int argc, char **argv) {
                   NSWidth(sw.donePopup.superview.frame) },
             { "test button reports nearby", sw.feedStatus.superview != nil &&
                   sw.feedStatus.superview != sw.statusLabel.superview },
+            { "info tips are clickable",  ({
+                  NSMutableArray *tips = [NSMutableArray array];
+                  NSMutableArray *queue = [@[sw.window.contentView] mutableCopy];
+                  while (queue.count) {
+                      NSView *v = queue.firstObject;
+                      [queue removeObjectAtIndex:0];
+                      if ([v isKindOfClass:[InfoTipView class]]) [tips addObject:v];
+                      [queue addObjectsFromArray:v.subviews];
+                  }
+                  BOOL ok = tips.count == 2;
+                  for (InfoTipView *t in tips)
+                      ok = ok && t.tip.length > 0 && !t.pinned &&
+                           [t respondsToSelector:@selector(mouseDown:)] &&
+                           [[t accessibilityRole] isEqualToString:
+                               NSAccessibilityButtonRole];
+                  ok; }) },
             { "class cells centre their text", ({
                   NSView *box = [sw tableView:sw.table
                            viewForTableColumn:sw.table.tableColumns[0] row:0];
