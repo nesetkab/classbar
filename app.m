@@ -305,12 +305,20 @@ static const NSTimeInterval kStaleSeconds = 300;
 
 - (void)toggleDone:(AssignmentView *)row {
     BOOL next = !row.done;
-    SetDone(row.item, next);
     NSString *key = DoneKey(row.item);
+    SetDone(row.item, next);
     if (next) [self.sessionMarks addObject:key];
     else [self.sessionMarks removeObject:key];
+
     row.done = next;
     row.needsDisplay = YES;
+
+    __weak ClassBar *weak = self;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        ClassBar *me = weak;
+        NSMenu *m = me.liveMenu;
+        if (me.menuOpen && m) [me menuNeedsUpdate:m];
+    });
 }
 
 - (void)menuDidClose:(NSMenu *)menu __unused {
