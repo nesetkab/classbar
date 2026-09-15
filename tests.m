@@ -596,7 +596,7 @@ int main(int argc, char **argv) {
                   NSWidth(sw.donePopup.superview.frame) },
             { "test button reports nearby", sw.feedStatus.superview != nil &&
                   sw.feedStatus.superview != sw.statusLabel.superview },
-            { "info tips are clickable",  ({
+            { "info tips carry their text", ({
                   NSMutableArray *tips = [NSMutableArray array];
                   NSMutableArray *queue = [@[sw.window.contentView] mutableCopy];
                   while (queue.count) {
@@ -607,8 +607,7 @@ int main(int argc, char **argv) {
                   }
                   BOOL ok = tips.count == 2;
                   for (InfoTipView *t in tips)
-                      ok = ok && t.tip.length > 0 && !t.pinned &&
-                           [t respondsToSelector:@selector(mouseDown:)] &&
+                      ok = ok && t.tip.length > 0 &&
                            [[t accessibilityRole] isEqualToString:
                                NSAccessibilityButtonRole];
                   ok; }) },

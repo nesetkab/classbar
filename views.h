@@ -14,7 +14,6 @@ extern const CGFloat kDoneCircleWidth;
 @end
 
 @interface InfoTipView : HoverTipView
-@property (assign) BOOL pinned;
 @end
 
 @interface AssignmentView : HoverTipView

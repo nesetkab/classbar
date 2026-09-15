@@ -110,69 +110,24 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
     [gTipPanel orderFrontRegardless];
 }
 
-static __weak InfoTipView *gPinnedInfo;
-
 @implementation InfoTipView
 
 - (NSSize)intrinsicContentSize {
     return NSMakeSize(16, 16);
 }
 
-- (void)showTipNow {
+- (void)syncHoverAt:(NSPoint)pt __unused {
+    if (!self.hovered) { self.hovered = YES; self.needsDisplay = YES; }
+    if (self.tipShown) return;
     self.tipShown = YES;
     TipShowNear(self.tip, [self.window convertRectToScreen:
         [self convertRect:self.bounds toView:nil]], YES);
-    self.needsDisplay = YES;
-}
-
-- (void)unpin {
-    if (gPinnedInfo == self) gPinnedInfo = nil;
-    self.pinned = NO;
-    [[NSNotificationCenter defaultCenter] removeObserver:self];
-    [self cancelTip];
-    self.needsDisplay = YES;
-}
-
-- (void)windowLostFocus:(NSNotification *)note __unused {
-    [self unpin];
-}
-
-- (void)mouseDown:(NSEvent *)e __unused {
-    if (self.pinned) { [self unpin]; return; }
-
-    [gPinnedInfo unpin];
-    self.pinned = YES;
-    gPinnedInfo = self;
-    [[NSNotificationCenter defaultCenter]
-        addObserver:self selector:@selector(windowLostFocus:)
-               name:NSWindowDidResignKeyNotification object:self.window];
-    [self showTipNow];
-}
-
-- (void)syncHoverAt:(NSPoint)pt __unused {
-    if (!self.hovered) { self.hovered = YES; self.needsDisplay = YES; }
-    if (!self.tipShown) [self showTipNow];
-}
-
-- (void)mouseExited:(NSEvent *)e {
-    self.hovered = NO;
-    self.needsDisplay = YES;
-    if (!self.pinned) [super mouseExited:e];
-}
-
-- (void)viewDidMoveToWindow {
-    [super viewDidMoveToWindow];
-    if (!self.window) [self unpin];
-}
-
-- (void)dealloc {
-    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 - (void)drawRect:(NSRect)dirty __unused {
-    NSColor *ink = (self.hovered || self.pinned) ? [NSColor labelColor]
-                                                 : [NSColor tertiaryLabelColor];
-    DrawSymbol(@"info.circle", 12, ink, self.bounds);
+    DrawSymbol(@"info.circle", 12,
+               self.hovered ? [NSColor labelColor] : [NSColor tertiaryLabelColor],
+               self.bounds);
 }
 
 - (BOOL)isAccessibilityElement {
