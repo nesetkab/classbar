@@ -274,7 +274,7 @@ int main(int argc, char **argv) {
         }
 
         printf("\ncb_series — first entry\n");
-        T("before term",             20260907, 600,  0, "Term hasn't started", NULL);
+        T("before term",             20260907, 600,  0, "term hasn't started", NULL);
         T("Mon 9:00 (15m before)",    20260914, 540,  0, "Gen Chem",        "9:15a • in 15m");
         T("Mon 9:15 (start edge)",    20260914, 555,  0, "Gen Chem",        "9:15a • 1h 5m left");
         T("Mon 10:19 (last minute)",  20260914, 619,  0, "Gen Chem",        "9:15a • 1m left");
@@ -287,7 +287,7 @@ int main(int argc, char **argv) {
         T("Fri is free",              20260918, 700,  4, "no classes today!", "");
         T("Sun is free",              20260920, 700,  6, "no classes today!", "");
         T("Thu 10:30 -> Calculus",    20260917, 630,  3, "Calculus 2",      "1:35p • in 3h 5m");
-        T("after term",               20261221, 600,  0, "Term is over",    "");
+        T("after term",               20261221, 600,  0, "term is over",    "");
 
         printf("\ncb_series — current + next pairing\n");
         T2("Mon 9:30 in Gen Chem",    20260914, 570,  0, "Gen Chem", "CHEM Recitation");
@@ -310,13 +310,13 @@ int main(int argc, char **argv) {
         NSString *freeTip = freeDay.count ? freeDay[0][@"tip"] : @"";
         struct { const char *label; BOOL ok; } freeChecks[] = {
             { "one card, not tomorrow's class", freeDay.count == 1 },
-            { "names the next class day",       [freeTip hasPrefix:@"Next: Wednesday"] },
+            { "names the next class day",       [freeTip hasPrefix:@"next: wednesday"] },
             { "lists every class that day",     [freeTip containsString:@"9:15a · Gen Chem"] &&
                   [freeTip containsString:@"1:35p · Calculus 2"] &&
                   [freeTip containsString:@"4:35p · Cornerstone 1"] },
             { "carries rooms",                  [freeTip containsString:@"Shillman Hall 105"] },
             { "skips the next free day",        [cb_series(gSched, 20260918, 700, 4, 1)[0][@"tip"]
-                  hasPrefix:@"Next: Monday"] },
+                  hasPrefix:@"next: monday"] },
         };
         for (size_t i = 0; i < sizeof(freeChecks) / sizeof(freeChecks[0]); i++) {
             if (!freeChecks[i].ok) fails++;
@@ -392,7 +392,7 @@ int main(int argc, char **argv) {
         NSString *sparse = TipText(@"Just a heading", @[@"", @""]);
         struct { const char *label; BOOL ok; } shapeChecks[] = {
             { "heading is the first line",   [[classTip componentsSeparatedByString:@"\n"][0]
-                                                 hasPrefix:@"Next: "] &&
+                                                 hasPrefix:@"next: "] &&
                                              [[itemTip componentsSeparatedByString:@"\n"][0]
                                                  isEqualToString:
                                                      @"Chapter 5: Problem Definition"] },
@@ -509,12 +509,12 @@ int main(int argc, char **argv) {
 
         printf("\nday tokens\n");
         struct { const char *in; const char *want; } dayCases[] = {
-            { "MWF",        "Mon Wed Fri" },
-            { "TuTh",       "Tue Thu" },
-            { "M W F",      "Mon Wed Fri" },
-            { "mon, wed",   "Mon Wed" },
-            { "MTWRF",      "Mon Tue Wed Thu Fri" },
-            { "SaSu",       "Sat Sun" },
+            { "MWF",        "mon wed fri" },
+            { "TuTh",       "tue thu" },
+            { "M W F",      "mon wed fri" },
+            { "mon, wed",   "mon wed" },
+            { "MTWRF",      "mon tue wed thu fri" },
+            { "SaSu",       "sat sun" },
             { "",           "" },
             { "xyz",        "" },
         };
@@ -563,13 +563,13 @@ int main(int argc, char **argv) {
             { "code split from title",     phys != nil &&
                   [phys[@"name"] isEqualToString:@"Physics for Engineering 1"] },
             { "rrule byday expanded",      phys != nil &&
-                  [DaysToText(phys[@"days"]) isEqualToString:@"Mon Wed Fri"] },
+                  [DaysToText(phys[@"days"]) isEqualToString:@"mon wed fri"] },
             { "tzid clock preserved",      phys != nil &&
                   [phys[@"start"] isEqualToString:@"09:15"] },
             { "room read from location",   phys != nil &&
                   [phys[@"room"] isEqualToString:@"Science Hall 210"] },
             { "repeats merge into days",   writing != nil &&
-                  [DaysToText(writing[@"days"]) isEqualToString:@"Mon Wed"] },
+                  [DaysToText(writing[@"days"]) isEqualToString:@"mon wed"] },
             { "utc converted to local",    writing != nil &&
                   [writing[@"start"] isEqualToString:@"14:50"] },
             { "term spans the rrule",      [imported[@"term"][@"start"] intValue] == 20260909 &&
@@ -814,8 +814,8 @@ int main(int argc, char **argv) {
                   NSMinX(row.dayChip.frame) + 1 &&
                   NSMaxX(row.dayChip.frame) <= NSMinX(row.timeChip.frame) + 1 },
             { "the time reads as a chip", row.timeChip.stringValue.length > 0 &&
-                  ([row.timeChip.stringValue containsString:@"AM"] ||
-                   [row.timeChip.stringValue containsString:@"PM"]) },
+                  ([row.timeChip.stringValue containsString:@"am"] ||
+                   [row.timeChip.stringValue containsString:@"pm"]) },
 
         };
         for (size_t i = 0; i < sizeof(rowChecks) / sizeof(rowChecks[0]); i++) {

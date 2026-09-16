@@ -115,7 +115,7 @@ static NSDate *DateFromYMD(int ymd) {
                             NSWindowStyleMaskMiniaturizable | NSWindowStyleMaskResizable
                     backing:NSBackingStoreBuffered
                       defer:NO];
-    self.window.title = @"ClassBar Settings";
+    self.window.title = @"classbar settings";
     self.window.releasedWhenClosed = NO;
     self.window.minSize = NSMakeSize(820, 560);
     self.window.delegate = self;
@@ -127,7 +127,7 @@ static NSDate *DateFromYMD(int ymd) {
     self.homeField = [NSTextField textFieldWithString:@""];
     self.homeField.placeholderString = @"https://school.instructure.com/";
     self.beforeField = [NSTextField textFieldWithString:@""];
-    self.beforeField.placeholderString = @"Classes begin Sep 9";
+    self.beforeField.placeholderString = @"classes begin sep 9";
 
     self.startPicker = [[NSDatePicker alloc] init];
     self.startPicker.datePickerElements = NSDatePickerElementFlagYearMonthDay;
@@ -157,8 +157,8 @@ static NSDate *DateFromYMD(int ymd) {
     self.capStepper.action = @selector(capStepperMoved);
 
     self.donePopup = [[NSPopUpButton alloc] init];
-    [self.donePopup addItemsWithTitles:@[@"Keep at the bottom",
-                                         @"Hide from the menu"]];
+    [self.donePopup addItemsWithTitles:@[@"keep at the bottom",
+                                         @"hide from the menu"]];
     [self.donePopup setContentHuggingPriority:NSLayoutPriorityRequired
                                forOrientation:NSLayoutConstraintOrientationHorizontal];
 
@@ -167,8 +167,8 @@ static NSDate *DateFromYMD(int ymd) {
 
     NSStackView *feedRow = [NSStackView stackViewWithViews:@[
         self.feedField,
-        [self infoTip:@"Canvas → Calendar → Calendar Feed"],
-        [self buttonWithTitle:@"Test" action:@selector(refresh)],
+        [self infoTip:@"canvas → calendar → calendar feed"],
+        [self buttonWithTitle:@"test" action:@selector(refresh)],
         self.feedStatus]];
     feedRow.spacing = 8;
     [self.feedField setContentHuggingPriority:NSLayoutPriorityDefaultLow
@@ -185,22 +185,22 @@ static NSDate *DateFromYMD(int ymd) {
 
     NSStackView *doneCol = [NSStackView stackViewWithViews:@[
         self.donePopup,
-        [self buttonWithTitle:@"Restore…" action:@selector(openDoneSheet)]]];
+        [self buttonWithTitle:@"restore…" action:@selector(openDoneSheet)]]];
     doneCol.spacing = 8;
 
     NSGridView *canvasForm = [self formWithRows:@[
-        @[[self labelWithText:@"Calendar feed"], feedRow],
-        @[[self labelWithText:@"Site"], self.homeField],
+        @[[self labelWithText:@"calendar feed"], feedRow],
+        @[[self labelWithText:@"site"], self.homeField],
     ] fill:[NSIndexSet indexSetWithIndexesInRange:NSMakeRange(0, 2)]];
 
     NSGridView *termForm = [self formWithRows:@[
-        @[[self labelWithText:@"Dates"], termRow],
-        @[[self labelWithText:@"Message before it starts"], self.beforeField],
+        @[[self labelWithText:@"dates"], termRow],
+        @[[self labelWithText:@"message before it starts"], self.beforeField],
     ] fill:[NSIndexSet indexSetWithIndex:1]];
 
     NSGridView *menuForm = [self formWithRows:@[
-        @[[self labelWithText:@"Assignment rows"], capRow],
-        @[[self labelWithText:@"Completed work"], doneCol],
+        @[[self labelWithText:@"assignment rows"], capRow],
+        @[[self labelWithText:@"completed work"], doneCol],
     ] fill:[NSIndexSet indexSet]];
 
     self.table = [[NSTableView alloc] init];
@@ -210,11 +210,11 @@ static NSDate *DateFromYMD(int ymd) {
     self.table.usesAlternatingRowBackgroundColors = YES;
     self.table.columnAutoresizingStyle = NSTableViewLastColumnOnlyAutoresizingStyle;
     self.table.rowHeight = 22;
-    for (NSArray *spec in @[ @[@"name", @"Name", @150], @[@"code", @"Code", @82],
-                             @[@"room", @"Room", @134], @[@"days", @"Days", @134],
-                             @[@"start", @"Start", @54], @[@"end", @"End", @54],
-                             @[@"canvas", @"Canvas link", @150],
-                             @[@"zoom", @"Zoom link", @130] ])
+    for (NSArray *spec in @[ @[@"name", @"name", @150], @[@"code", @"code", @82],
+                             @[@"room", @"room", @134], @[@"days", @"days", @134],
+                             @[@"start", @"start", @54], @[@"end", @"end", @54],
+                             @[@"canvas", @"canvas link", @150],
+                             @[@"zoom", @"zoom link", @130] ])
         [self.table addTableColumn:[self columnWithId:spec[0] title:spec[1]
                                                 width:[spec[2] doubleValue]]];
 
@@ -228,11 +228,11 @@ static NSDate *DateFromYMD(int ymd) {
     [classSpacer setContentHuggingPriority:NSLayoutPriorityDefaultLow
                             forOrientation:NSLayoutConstraintOrientationHorizontal];
     NSStackView *classButtons = [NSStackView stackViewWithViews:@[
-        [self buttonWithTitle:@"Add" action:@selector(addClass)],
-        [self buttonWithTitle:@"Remove" action:@selector(removeSelected)],
-        [self infoTip:@"Days takes MWF, TuTh, Mon Wed, or M W F"],
+        [self buttonWithTitle:@"add" action:@selector(addClass)],
+        [self buttonWithTitle:@"remove" action:@selector(removeSelected)],
+        [self infoTip:@"days takes MWF, TuTh, Mon Wed, or M W F"],
         classSpacer,
-        [self buttonWithTitle:@"Import from .ics…" action:@selector(importICS)],
+        [self buttonWithTitle:@"import from .ics…" action:@selector(importICS)],
     ]];
     classButtons.spacing = 8;
 
@@ -249,19 +249,19 @@ static NSDate *DateFromYMD(int ymd) {
     [footSpacer setContentHuggingPriority:NSLayoutPriorityDefaultLow
                            forOrientation:NSLayoutConstraintOrientationHorizontal];
 
-    NSButton *save = [self buttonWithTitle:@"Save" action:@selector(save)];
+    NSButton *save = [self buttonWithTitle:@"save" action:@selector(save)];
     save.keyEquivalent = @"\r";
-    NSButton *revert = [self buttonWithTitle:@"Revert" action:@selector(load)];
+    NSButton *revert = [self buttonWithTitle:@"revert" action:@selector(load)];
 
     NSStackView *footer = [NSStackView stackViewWithViews:@[
         self.statusLabel, footSpacer, revert, save]];
     footer.spacing = 8;
 
     NSStackView *root = [NSStackView stackViewWithViews:@[
-        [self sectionWithHeading:@"Canvas" body:canvasForm],
-        [self sectionWithHeading:@"Term" body:termForm],
-        [self sectionWithHeading:@"Menu" body:menuForm],
-        [self sectionWithHeading:@"Classes" body:classBody],
+        [self sectionWithHeading:@"canvas" body:canvasForm],
+        [self sectionWithHeading:@"term" body:termForm],
+        [self sectionWithHeading:@"menu" body:menuForm],
+        [self sectionWithHeading:@"classes" body:classBody],
         footer,
     ]];
     root.orientation = NSUserInterfaceLayoutOrientationVertical;
@@ -372,11 +372,11 @@ static NSDate *DateFromYMD(int ymd) {
     if (sender != self.window || ![self hasUnsavedChanges]) return YES;
 
     NSAlert *ask = [[NSAlert alloc] init];
-    ask.messageText = @"Save your changes?";
-    ask.informativeText = @"Closing without saving discards them.";
-    [ask addButtonWithTitle:@"Save"];
-    [ask addButtonWithTitle:@"Cancel"];
-    [ask addButtonWithTitle:@"Discard"];
+    ask.messageText = @"save your changes?";
+    ask.informativeText = @"closing without saving discards them.";
+    [ask addButtonWithTitle:@"save"];
+    [ask addButtonWithTitle:@"cancel"];
+    [ask addButtonWithTitle:@"discard"];
     ask.buttons[2].keyEquivalent = @"d";
     ask.buttons[2].keyEquivalentModifierMask = NSEventModifierFlagCommand;
 
@@ -454,7 +454,7 @@ static NSDate *DateFromYMD(int ymd) {
 }
 
 - (void)addClass {
-    [self.classes addObject:[@{ @"name": @"New Class", @"code": @"", @"room": @"",
+    [self.classes addObject:[@{ @"name": @"new class", @"code": @"", @"room": @"",
                                 @"days": [NSMutableArray array],
                                 @"start": @"09:00", @"end": @"10:00",
                                 @"canvas": @"", @"zoom": @"" } mutableCopy]];
@@ -477,15 +477,15 @@ static NSDate *DateFromYMD(int ymd) {
     UTType *ics = [UTType typeWithFilenameExtension:@"ics"];
     if (ics) panel.allowedContentTypes = @[ics];
     panel.allowsMultipleSelection = NO;
-    panel.message = @"Choose a calendar export that contains your class meetings.";
+    panel.message = @"choose a calendar export that contains your class meetings.";
     if ([panel runModal] != NSModalResponseOK || !panel.URL) return;
 
     NSString *text = [NSString stringWithContentsOfURL:panel.URL
                                               encoding:NSUTF8StringEncoding error:NULL];
     NSDictionary *result = text ? cb_ics_classes(text) : nil;
     if (!result) {
-        [self alert:@"Nothing to import"
-               info:@"No weekly class meetings were found in that calendar."];
+        [self alert:@"nothing to import"
+               info:@"no weekly class meetings were found in that calendar."];
         return;
     }
     [self applyImport:result];
@@ -520,7 +520,7 @@ static NSDate *DateFromYMD(int ymd) {
     if (!self.beforeField.stringValue.length)
         self.beforeField.stringValue = term[@"beforeLabel"] ?: @"";
     [self.table reloadData];
-    [self setNote:[NSString stringWithFormat:@"Imported %lu classes. Not saved yet.",
+    [self setNote:[NSString stringWithFormat:@"imported %lu classes, not saved yet",
                    (unsigned long)merged.count]];
 }
 
@@ -541,7 +541,7 @@ static NSDate *DateFromYMD(int ymd) {
                       styleMask:NSWindowStyleMaskTitled | NSWindowStyleMaskResizable
                         backing:NSBackingStoreBuffered
                           defer:NO];
-        self.doneSheet.title = @"Completed Assignments";
+        self.doneSheet.title = @"completed assignments";
 
         self.doneTable = [[NSTableView alloc] init];
         self.doneTable.dataSource = self;
@@ -552,9 +552,9 @@ static NSDate *DateFromYMD(int ymd) {
             NSTableViewLastColumnOnlyAutoresizingStyle;
         self.doneTable.rowHeight = 22;
         [self.doneTable addTableColumn:[self columnWithId:@"doneDue"
-                                                    title:@"Due" width:110]];
+                                                    title:@"due" width:110]];
         [self.doneTable addTableColumn:[self columnWithId:@"doneName"
-                                                    title:@"Assignment" width:300]];
+                                                    title:@"assignment" width:300]];
 
         NSScrollView *scroll = [[NSScrollView alloc] init];
         scroll.documentView = self.doneTable;
@@ -565,14 +565,14 @@ static NSDate *DateFromYMD(int ymd) {
         [spacer setContentHuggingPriority:NSLayoutPriorityDefaultLow
                            forOrientation:NSLayoutConstraintOrientationHorizontal];
 
-        NSButton *close = [self buttonWithTitle:@"Done" action:@selector(closeDoneSheet)];
+        NSButton *close = [self buttonWithTitle:@"done" action:@selector(closeDoneSheet)];
         close.keyEquivalent = @"\r";
 
         NSStackView *buttons = [NSStackView stackViewWithViews:@[
-            [self buttonWithTitle:@"Restore Selected" action:@selector(restoreSelected)],
-            [self buttonWithTitle:@"Restore All" action:@selector(restoreAll)],
+            [self buttonWithTitle:@"restore selected" action:@selector(restoreSelected)],
+            [self buttonWithTitle:@"restore all" action:@selector(restoreAll)],
             spacer,
-            [self hintWithText:@"Applied when you press Save"],
+            [self hintWithText:@"applied when you press save"],
             close]];
         buttons.spacing = 8;
 
@@ -638,12 +638,12 @@ static NSDate *DateFromYMD(int ymd) {
 - (void)refresh {
     NSURL *url = FeedURL(self.feedField.stringValue);
     if (!url) {
-        [self setStatus:self.feedField.stringValue.length ? @"Not a URL"
-                                                          : @"No feed URL yet"];
+        [self setStatus:self.feedField.stringValue.length ? @"not a url"
+                                                          : @"no feed url yet"];
         return;
     }
 
-    [self setStatus:@"Testing…"];
+    [self setStatus:@"testing…"];
     NSString *home = self.homeField.stringValue;
     NSURLRequest *req = [NSURLRequest requestWithURL:url
                                         cachePolicy:NSURLRequestReloadIgnoringLocalCacheData
@@ -657,10 +657,10 @@ static NSDate *DateFromYMD(int ymd) {
             ? [[NSString alloc] initWithData:data encoding:NSUTF8StringEncoding] : nil;
         NSUInteger found = body ? cb_ics_items(body, home).count : 0;
         NSString *note;
-        if (err) note = @"No reply";
-        else if (code >= 400) note = [NSString stringWithFormat:@"Canvas said %ld",
+        if (err) note = @"no reply";
+        else if (code >= 400) note = [NSString stringWithFormat:@"canvas said %ld",
                                       (long)code];
-        else if (!found) note = @"Reached it, no assignments";
+        else if (!found) note = @"reached it, no assignments";
         else note = [NSString stringWithFormat:@"%lu assignments", (unsigned long)found];
         dispatch_async(dispatch_get_main_queue(), ^{ [weak setStatus:note]; });
     }] resume];
@@ -671,7 +671,7 @@ static NSDate *DateFromYMD(int ymd) {
     for (NSUInteger i = 0; i < self.classes.count; i++) {
         NSDictionary *c = self.classes[i];
         NSString *label = [c[@"name"] length] ? c[@"name"]
-                        : [NSString stringWithFormat:@"Row %lu", (unsigned long)i + 1];
+                        : [NSString stringWithFormat:@"row %lu", (unsigned long)i + 1];
         if (![c[@"name"] length])
             [problems addObject:[NSString stringWithFormat:@"%@ has no name", label]];
         if (![c[@"days"] count])
@@ -715,7 +715,7 @@ static NSDate *DateFromYMD(int ymd) {
 
     NSArray *problems = [self problems];
     if (problems.count) {
-        [self alert:@"Fix these first" info:[problems componentsJoinedByString:@"\n"]];
+        [self alert:@"fix these first" info:[problems componentsJoinedByString:@"\n"]];
         return NO;
     }
 
@@ -727,7 +727,7 @@ static NSDate *DateFromYMD(int ymd) {
              createDirectoryAtPath:[SchedulePath() stringByDeletingLastPathComponent]
        withIntermediateDirectories:YES attributes:nil error:NULL];
     if (!json || ![json writeToFile:SchedulePath() atomically:YES]) {
-        [self alert:@"Could not save" info:SchedulePath()];
+        [self alert:@"could not save" info:SchedulePath()];
         return NO;
     }
 
@@ -737,7 +737,7 @@ static NSDate *DateFromYMD(int ymd) {
     }
 
     self.savedSnapshot = root;
-    [self setNote:@"Saved"];
+    [self setNote:@"saved"];
     if (self.target && self.savedAction)
         ((void (*)(id, SEL))objc_msgSend)(self.target, self.savedAction);
     return YES;

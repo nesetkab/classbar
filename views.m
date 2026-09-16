@@ -243,7 +243,7 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
     if (!self) return self;
 
     self.nameField = [[MenuFieldEditor alloc] initWithFrame:NSMakeRect(0, 0, 200, 16)];
-    self.nameField.placeholder = @"New task";
+    self.nameField.placeholder = @"new task";
     self.nameField.editable = YES;
     self.nameField.selectable = YES;
     self.nameField.richText = NO;
@@ -297,14 +297,14 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
     _dayValue = day;
     NSDateFormatter *f = [[NSDateFormatter alloc] init];
     f.dateFormat = @"EEE M/d";
-    self.dayChip.stringValue = day ? [f stringFromDate:day] : @"";
+    self.dayChip.stringValue = day ? [f stringFromDate:day].lowercaseString : @"";
 }
 
 - (void)setTimeValue:(NSDate *)time {
     _timeValue = time;
     NSDateFormatter *f = [[NSDateFormatter alloc] init];
     f.dateFormat = @"h:mm a";
-    self.timeChip.stringValue = time ? [f stringFromDate:time] : @"";
+    self.timeChip.stringValue = time ? [f stringFromDate:time].lowercaseString : @"";
 }
 
 - (NSRect)dayChipRect {
@@ -522,7 +522,7 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
     NSRect box = NSInsetRect(self.bounds, 7, 3);
     NSDictionary *f = @{ NSFontAttributeName:
         [NSFont systemFontOfSize:9.5 weight:NSFontWeightSemibold] };
-    CGFloat w = ceil([@"Zoom" sizeWithAttributes:f].width) + 25;
+    CGFloat w = ceil([@"zoom" sizeWithAttributes:f].width) + 25;
     CGFloat h = 15;
     CGFloat x = NSMaxX(box) - 8 - w;
     CGFloat y = NSMinY(box) + (NSHeight(box) * 0.5 - h) * 0.5 + 1;
@@ -610,9 +610,9 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
             NSFontAttributeName: [NSFont systemFontOfSize:9.5 weight:NSFontWeightSemibold],
             NSForegroundColorAttributeName: [NSColor whiteColor]
         };
-        NSSize zs = [@"Zoom" sizeWithAttributes:zAttr];
+        NSSize zs = [@"zoom" sizeWithAttributes:zAttr];
         CGFloat tx = NSMinX(pill) + 8;
-        [@"Zoom" drawAtPoint:NSMakePoint(tx, NSMidY(pill) - zs.height / 2 + 0.5)
+        [@"zoom" drawAtPoint:NSMakePoint(tx, NSMidY(pill) - zs.height / 2 + 0.5)
               withAttributes:zAttr];
         DrawSymbol(@"arrow.up.right", 8.5, [NSColor whiteColor],
                    NSMakeRect(tx + zs.width + 2, NSMinY(pill), 11, NSHeight(pill)));
@@ -706,7 +706,7 @@ NSFont *NameFont(void) {
 - (NSArray<NSAccessibilityCustomAction *> *)accessibilityCustomActions {
     if (!self.target || !self.toggleAction) return @[];
     __weak AssignmentView *weak = self;
-    NSString *title = self.done ? @"Mark not done" : @"Mark done";
+    NSString *title = self.done ? @"mark not done" : @"mark done";
     return @[[[NSAccessibilityCustomAction alloc] initWithName:title handler:^BOOL{
         AssignmentView *me = weak;
         if (!me || !me.target || !me.toggleAction) return NO;
@@ -810,7 +810,7 @@ NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *
 }
 
 - (NSRect)quitRect {
-    NSSize s = [@"Quit" sizeWithAttributes:[self quitAttributes]];
+    NSSize s = [@"quit" sizeWithAttributes:[self quitAttributes]];
     return NSMakeRect(5, NSMidY(self.bounds) - 11, ceil(s.width) + 18, 22);
 }
 
@@ -915,8 +915,8 @@ NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *
     NSMutableDictionary *a = [[self quitAttributes] mutableCopy];
     a[NSForegroundColorAttributeName] = quitLit
         ? [NSColor alternateSelectedControlTextColor] : [NSColor labelColor];
-    NSSize qs = [@"Quit" sizeWithAttributes:a];
-    [@"Quit" drawAtPoint:NSMakePoint(NSMinX(quit) + 9, NSMidY(quit) - qs.height / 2)
+    NSSize qs = [@"quit" sizeWithAttributes:a];
+    [@"quit" drawAtPoint:NSMakePoint(NSMinX(quit) + 9, NSMidY(quit) - qs.height / 2)
           withAttributes:a];
 
     if (self.status.length) {

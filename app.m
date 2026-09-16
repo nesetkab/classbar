@@ -138,7 +138,7 @@ static const NSTimeInterval kStaleSeconds = 300;
             NSDictionary *e = series[k];
             NSString *t = (k == 0 || [e[@"notice"] boolValue])
                         ? e[@"title"]
-                        : [NSString stringWithFormat:@"Next: %@", e[@"title"]];
+                        : [NSString stringWithFormat:@"next: %@", e[@"title"]];
             [menu addItem:CardItem(t, e[@"code"], e[@"when"], e[@"room"], e[@"link"],
                                    e[@"zoom"], e[@"tip"],
                                    (k == 0 && ![e[@"done"] boolValue]) ? purple : blue,
@@ -161,7 +161,8 @@ static const NSTimeInterval kStaleSeconds = 300;
             if (due) {
                 NSDateFormatter *df = [[NSDateFormatter alloc] init];
                 df.dateFormat = @"EEE MMM d · h:mm a";
-                whenLine = [NSString stringWithFormat:@"Due %@", [df stringFromDate:due]];
+                whenLine = [NSString stringWithFormat:@"due %@",
+                    [df stringFromDate:due].lowercaseString];
             }
             NSString *tip = TipText(full,
                 @[[cs isKindOfClass:[NSString class]] ? cs : @"", whenLine]);
@@ -198,7 +199,7 @@ static const NSTimeInterval kStaleSeconds = 300;
     fv.refreshAction = @selector(refreshNow);
     fv.settingsAction = @selector(openSettings);
     fv.plusAction = @selector(openQuickAdd);
-    fv.status = self.fetching ? @"Syncing…" : CacheAgeLabel();
+    fv.status = self.fetching ? @"syncing…" : CacheAgeLabel();
     self.footer = fv;
     self.liveMenu = menu;
     NSMenuItem *q = [[NSMenuItem alloc] init];
@@ -327,18 +328,18 @@ static const NSTimeInterval kStaleSeconds = 300;
     NSString *feed = self.schedule.canvasFeed;
     if (!feed.length) {
         self.scheduleStamp = 0;
-        [self setFooterStatus:@"No Canvas feed"];
+        [self setFooterStatus:@"no canvas feed"];
         return;
     }
 
     NSURL *url = FeedURL(feed);
     if (!url) {
-        [self setFooterStatus:@"Bad feed URL"];
+        [self setFooterStatus:@"bad feed url"];
         return;
     }
 
     self.fetching = YES;
-    [self setFooterStatus:@"Syncing…"];
+    [self setFooterStatus:@"syncing…"];
 
     NSString *home = self.schedule.canvasHome;
     NSURLRequest *req = [NSURLRequest requestWithURL:url
@@ -357,7 +358,7 @@ static const NSTimeInterval kStaleSeconds = 300;
                                               kCacheAssignmentCap)
                               : nil;
         dispatch_async(dispatch_get_main_queue(), ^{
-            [weak finishFetch:items failure:(code >= 400 ? @"Canvas said no" : nil)];
+            [weak finishFetch:items failure:(code >= 400 ? @"canvas said no" : nil)];
         });
     }];
     [task resume];
@@ -366,17 +367,17 @@ static const NSTimeInterval kStaleSeconds = 300;
 - (void)finishFetch:(NSArray *)items failure:(NSString *)failure {
     self.fetching = NO;
     if (!items) {
-        [self setFooterStatus:failure ?: @"Fetch failed"];
+        [self setFooterStatus:failure ?: @"fetch failed"];
         return;
     }
     if (!WriteCache(items)) {
-        [self setFooterStatus:@"Cache write failed"];
+        [self setFooterStatus:@"cache write failed"];
         return;
     }
     BOOL changed = !self.cachedItems || ![items isEqualToArray:self.cachedItems];
     NSMenu *m = self.liveMenu;
     if (changed && self.menuOpen && !self.composing && m) [self menuNeedsUpdate:m];
-    [self setFooterStatus:@"Updated"];
+    [self setFooterStatus:@"updated"];
 }
 
 - (void)refreshIfOlderThan:(NSTimeInterval)age {

@@ -15,7 +15,7 @@ int ParseClock(NSString *s) {
 
 + (instancetype)loadFromDisk {
     NSData *d = [NSData dataWithContentsOfFile:SchedulePath()];
-    if (!d) return [self failedWith:@"No schedule.json"];
+    if (!d) return [self failedWith:@"no schedule.json"];
     NSError *err = nil;
     id root = [NSJSONSerialization JSONObjectWithData:d options:0 error:&err];
     if (![root isKindOfClass:[NSDictionary class]])
@@ -36,7 +36,7 @@ int ParseClock(NSString *s) {
     s.canvasHome = @"https://canvas.instructure.com/";
     s.termStart = 0;
     s.termEnd = 99999999;
-    s.beforeLabel = @"Term hasn't started";
+    s.beforeLabel = @"term hasn't started";
     s.assignmentCap = kDefaultAssignmentCap;
 
     if ([root[@"canvasHome"] isKindOfClass:[NSString class]]) s.canvasHome = root[@"canvasHome"];
@@ -93,7 +93,7 @@ static NSString *DUR(int m) {
 }
 
 const char * const kDayName[7] = {
-    "Monday","Tuesday","Wednesday","Thursday","Friday","Saturday","Sunday"
+    "monday","tuesday","wednesday","thursday","friday","saturday","sunday"
 };
 
 static NSDictionary *cb_notice(NSString *title, NSString *when) {
@@ -126,7 +126,7 @@ static NSString *cb_next_day_tip(Schedule *s, int day) {
         if (!list.count) continue;
         NSMutableArray *lines = [NSMutableArray array];
         for (NSDictionary *c in list) [lines addObject:TipClassLine(c)];
-        return TipText([NSString stringWithFormat:@"Next: %s", kDayName[nd]], lines);
+        return TipText([NSString stringWithFormat:@"next: %s", kDayName[nd]], lines);
     }
     return @"";
 }
@@ -141,9 +141,9 @@ static NSDictionary *cb_done(Schedule *s, int day) {
 NSArray *cb_series(Schedule *s, int ymd, int mins, int day, int count) {
     NSMutableArray *out = [NSMutableArray array];
     if (s.loadError)
-        return @[cb_notice(s.loadError, @"Add one to Application Support/classbar")];
-    if (ymd < s.termStart) return @[cb_notice(@"Term hasn't started", s.beforeLabel)];
-    if (ymd > s.termEnd)   return @[cb_notice(@"Term is over", @"")];
+        return @[cb_notice(s.loadError, @"add one to Application Support/classbar")];
+    if (ymd < s.termStart) return @[cb_notice(@"term hasn't started", s.beforeLabel)];
+    if (ymd > s.termEnd)   return @[cb_notice(@"term is over", @"")];
 
     if (![s.byDay[day] count]) {
         NSString *tip = cb_next_day_tip(s, day);
@@ -208,12 +208,12 @@ NSArray *cb_series(Schedule *s, int ymd, int mins, int day, int count) {
         }
         if (!rolled) break;
     }
-    if (!out.count) return @[cb_notice(@"No classes", @"")];
+    if (!out.count) return @[cb_notice(@"no classes", @"")];
     return out;
 }
 
 static NSArray *DayTokens(void) {
-    return @[@"Mon", @"Tue", @"Wed", @"Thu", @"Fri", @"Sat", @"Sun"];
+    return @[@"mon", @"tue", @"wed", @"thu", @"fri", @"sat", @"sun"];
 }
 
 NSString *DaysToText(NSArray *days) {
