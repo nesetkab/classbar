@@ -189,7 +189,6 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
     p.font = [NSFont systemFontOfSize:11];
     p.bordered = NO;
     p.drawsBackground = NO;
-    p.focusRingType = NSFocusRingTypeNone;
     p.translatesAutoresizingMaskIntoConstraints = NO;
     [p setContentHuggingPriority:NSLayoutPriorityRequired
                   forOrientation:NSLayoutConstraintOrientationHorizontal];
@@ -207,6 +206,17 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
     day.minute = clock.minute;
     day.second = 0;
     return [cal dateFromComponents:day] ?: self.dayPicker.dateValue;
+}
+
+- (void)drawRect:(NSRect)dirty __unused {
+    for (NSView *field in @[self.dayPicker, self.timePicker]) {
+        if (NSWidth(field.frame) <= 0) continue;
+        NSRect chip = NSInsetRect(field.frame, -6, -3);
+        NSBezierPath *p = [NSBezierPath bezierPathWithRoundedRect:chip
+                                                          xRadius:5 yRadius:5];
+        [[NSColor colorWithWhite:1.0 alpha:0.08] setFill];
+        [p fill];
+    }
 }
 
 - (void)commit {
