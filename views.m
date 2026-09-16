@@ -144,6 +144,100 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 
 @end
 
+@implementation ComposeRowView
+
+- (instancetype)initWithFrame:(NSRect)frame {
+    self = [super initWithFrame:frame];
+    if (!self) return self;
+
+    self.nameField = [NSTextField textFieldWithString:@""];
+    self.nameField.placeholderString = @"New task";
+    self.nameField.bordered = NO;
+    self.nameField.drawsBackground = NO;
+    self.nameField.font = [NSFont systemFontOfSize:12];
+    self.nameField.focusRingType = NSFocusRingTypeNone;
+    self.nameField.translatesAutoresizingMaskIntoConstraints = NO;
+    self.nameField.target = self;
+    self.nameField.action = @selector(commit);
+
+    self.dayPicker = [self pickerWith:NSDatePickerElementFlagYearMonthDay];
+    self.timePicker = [self pickerWith:NSDatePickerElementFlagHourMinute];
+
+    [self addSubview:self.nameField];
+    [self addSubview:self.dayPicker];
+    [self addSubview:self.timePicker];
+    [NSLayoutConstraint activateConstraints:@[
+        [self.nameField.leadingAnchor constraintEqualToAnchor:self.leadingAnchor
+                                                     constant:14],
+        [self.nameField.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+        [self.dayPicker.leadingAnchor
+            constraintEqualToAnchor:self.nameField.trailingAnchor constant:10],
+        [self.dayPicker.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+        [self.timePicker.leadingAnchor
+            constraintEqualToAnchor:self.dayPicker.trailingAnchor constant:8],
+        [self.timePicker.trailingAnchor constraintEqualToAnchor:self.trailingAnchor
+                                                       constant:-14],
+        [self.timePicker.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+    ]];
+    return self;
+}
+
+- (NSDatePicker *)pickerWith:(NSDatePickerElementFlags)flags {
+    NSDatePicker *p = [[NSDatePicker alloc] init];
+    p.datePickerElements = flags;
+    p.datePickerStyle = NSDatePickerStyleTextFieldAndStepper;
+    p.font = [NSFont systemFontOfSize:11];
+    p.bordered = NO;
+    p.drawsBackground = NO;
+    p.focusRingType = NSFocusRingTypeNone;
+    p.translatesAutoresizingMaskIntoConstraints = NO;
+    [p setContentHuggingPriority:NSLayoutPriorityRequired
+                  forOrientation:NSLayoutConstraintOrientationHorizontal];
+    return p;
+}
+
+- (NSDate *)chosenDue {
+    NSCalendar *cal = [NSCalendar currentCalendar];
+    NSDateComponents *day = [cal components:(NSCalendarUnitYear | NSCalendarUnitMonth |
+                                             NSCalendarUnitDay)
+                                   fromDate:self.dayPicker.dateValue];
+    NSDateComponents *clock = [cal components:(NSCalendarUnitHour | NSCalendarUnitMinute)
+                                     fromDate:self.timePicker.dateValue];
+    day.hour = clock.hour;
+    day.minute = clock.minute;
+    day.second = 0;
+    return [cal dateFromComponents:day] ?: self.dayPicker.dateValue;
+}
+
+- (void)commit {
+    if (self.committed) return;
+    self.committed = YES;
+    self.nameField.target = nil;
+    self.nameField.action = NULL;
+    if (self.target && self.action)
+        ((void (*)(id, SEL, id))objc_msgSend)(self.target, self.action, self);
+}
+
+- (void)viewDidMoveToWindow {
+    [super viewDidMoveToWindow];
+    if (self.window) [self.window makeFirstResponder:self.nameField];
+}
+
+@end
+
+NSMenuItem *ComposeRowItem(NSDate *due, id target, SEL action, CGFloat width) {
+    ComposeRowView *v = [[ComposeRowView alloc]
+        initWithFrame:NSMakeRect(0, 0, width, 24)];
+    v.autoresizingMask = NSViewWidthSizable;
+    v.dayPicker.dateValue = due;
+    v.timePicker.dateValue = due;
+    v.target = target;
+    v.action = action;
+    NSMenuItem *i = [[NSMenuItem alloc] init];
+    i.view = v;
+    return i;
+}
+
 @interface CardView : HoverTipView
 @property (copy) NSString *title;
 @property (copy) NSString *code;
@@ -584,7 +678,6 @@ NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *
     if (NSPointInRect(pt, NSInsetRect([self refreshRect], -4, -4))) {
         sel = self.refreshAction;
     } else if (NSPointInRect(pt, NSInsetRect([self plusRect], -4, -4))) {
-        [self.enclosingMenuItem.menu cancelTracking];
         sel = self.plusAction;
     } else if (NSPointInRect(pt, NSInsetRect([self gearRect], -4, -4))) {
         [self.enclosingMenuItem.menu cancelTracking];

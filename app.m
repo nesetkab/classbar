@@ -3,7 +3,6 @@
 #import "app.h"
 #import "views.h"
 #import "settings.h"
-#import "quickadd.h"
 #import "ics.h"
 #import "schedule.h"
 #import "store.h"
@@ -19,7 +18,7 @@
 @property (strong) NSArray *cachedItems;
 @property (strong) NSMutableSet *sessionMarks;
 @property (strong) SettingsWindow *settings;
-@property (strong) TaskComposer *composer;
+@property (assign) BOOL composing;
 @property (assign) CGFloat menuWidth;
 @property (copy)   NSString *link;
 @end
@@ -171,6 +170,16 @@ static const NSTimeInterval kStaleSeconds = 300;
         }
     }
 
+    if (self.composing) {
+        NSCalendar *cal2 = [NSCalendar currentCalendar];
+        NSDateComponents *parts = [cal2 components:(NSCalendarUnitYear |
+            NSCalendarUnitMonth | NSCalendarUnitDay) fromDate:now];
+        parts.hour = 23;
+        parts.minute = 59;
+        [menu addItem:ComposeRowItem([cal2 dateFromComponents:parts] ?: now,
+                                     self, @selector(commitTask:), cardWidth)];
+    }
+
     FooterView *fv = [[FooterView alloc] initWithFrame:NSMakeRect(0, 0, cardWidth, 26)];
     fv.autoresizingMask = NSViewWidthSizable;
     fv.target = self;
@@ -236,11 +245,26 @@ static const NSTimeInterval kStaleSeconds = 300;
 }
 
 - (void)openQuickAdd {
-    if (!self.composer) {
-        self.composer = [[TaskComposer alloc] init];
-        self.composer.target = self;
+    self.composing = !self.composing;
+    NSMenu *m = self.liveMenu;
+    if (m) [self menuNeedsUpdate:m];
+}
+
+- (void)commitTask:(ComposeRowView *)row {
+    NSString *name = row.nameField.stringValue;
+    if (![name stringByTrimmingCharactersInSet:
+            [NSCharacterSet whitespaceAndNewlineCharacterSet]].length) {
+        self.composing = NO;
+    } else {
+        AddTask(name, [row chosenDue]);
+        self.composing = NO;
     }
-    [self.composer showBelow:self.status.button width:self.menuWidth];
+    __weak ClassBar *weak = self;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        ClassBar *me = weak;
+        NSMenu *m = me.liveMenu;
+        if (me.menuOpen && m) [me menuNeedsUpdate:m];
+    });
 }
 
 - (void)settingsSaved {
@@ -356,6 +380,7 @@ static const NSTimeInterval kStaleSeconds = 300;
 
 - (void)menuDidClose:(NSMenu *)menu __unused {
     self.menuOpen = NO;
+    self.composing = NO;
     [self.sessionMarks removeAllObjects];
     TipHide();
     [self refreshIfOlderThan:kRefreshFloorSeconds];

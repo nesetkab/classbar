@@ -16,6 +16,17 @@ extern const CGFloat kDoneCircleWidth;
 @interface InfoTipView : HoverTipView
 @end
 
+@interface ComposeRowView : NSView
+@property (strong) NSTextField *nameField;
+@property (strong) NSDatePicker *dayPicker;
+@property (strong) NSDatePicker *timePicker;
+@property (assign) BOOL committed;
+@property (weak)   id target;
+@property (assign) SEL action;
+- (NSDate *)chosenDue;
+- (void)commit;
+@end
+
 @interface AssignmentView : HoverTipView
 @property (copy) NSString *due;
 @property (copy) NSString *name;
@@ -51,6 +62,7 @@ NSMenuItem *AssignmentItem(NSDictionary *item, NSString *due, NSString *name,
                            NSString *link, NSString *tip, BOOL late, BOOL done,
                            CGFloat dueWidth, CGFloat width,
                            id target, SEL toggleAction);
+NSMenuItem *ComposeRowItem(NSDate *due, id target, SEL action, CGFloat width);
 NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *room,
                      NSString *link, NSString *zoom, NSString *tip,
                      NSColor *bg, CGFloat width);

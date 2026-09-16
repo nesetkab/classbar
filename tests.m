@@ -2,7 +2,6 @@
 #import "app.h"
 #import "views.h"
 #import "settings.h"
-#import "quickadd.h"
 #import "ics.h"
 #import "schedule.h"
 #import "store.h"
@@ -93,39 +92,6 @@ int main(int argc, char **argv) {
             [[NSRunLoop currentRunLoop] runUntilDate:
                 [NSDate dateWithTimeIntervalSinceNow:25]];
             return 0;
-        }
-
-        if (argc > 2 && strcmp(argv[1], "--composer") == 0) {
-            TaskComposer *c = [[TaskComposer alloc] init];
-            CGFloat w = argc > 3 ? atof(argv[3]) : 372;
-            [c showBelow:nil width:w];
-            NSView *v = c.backdrop;
-            v.frame = NSMakeRect(0, 0, w, v.fittingSize.height);
-            [v layoutSubtreeIfNeeded];
-            CGFloat pad = 14;
-            NSImage *sheet = [[NSImage alloc]
-                initWithSize:NSMakeSize(NSWidth(v.frame) + pad * 2,
-                                        NSHeight(v.frame) + pad * 2)];
-            [sheet lockFocus];
-            [[NSColor colorWithWhite:0.14 alpha:1.0] setFill];
-            NSRectFill(NSMakeRect(0, 0, sheet.size.width, sheet.size.height));
-            v.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
-            [NSGraphicsContext saveGraphicsState];
-            NSAffineTransform *t = [NSAffineTransform transform];
-            [t translateXBy:pad yBy:pad];
-            [t concat];
-            [v displayRectIgnoringOpacity:v.bounds
-                                inContext:[NSGraphicsContext currentContext]];
-            [NSGraphicsContext restoreGraphicsState];
-            [sheet unlockFocus];
-            NSBitmapImageRep *out = [[NSBitmapImageRep alloc]
-                initWithData:[sheet TIFFRepresentation]];
-            BOOL ok = [[out representationUsingType:NSBitmapImageFileTypePNG
-                                         properties:@{}] writeToFile:@(argv[2])
-                                                          atomically:YES];
-            printf("%s %s (%.0fx%.0f)\n", ok ? "wrote" : "failed", argv[2],
-                   NSWidth(v.frame), NSHeight(v.frame));
-            return ok ? 0 : 1;
         }
 
         if (argc > 2 && strcmp(argv[1], "--rows") == 0) {
@@ -685,54 +651,34 @@ int main(int argc, char **argv) {
             printf("  %-4s %s\n", tripChecks[i].ok ? "ok" : "FAIL", tripChecks[i].label);
         }
 
-        printf("\ntask composer\n");
-        TaskComposer *composer = [[TaskComposer alloc] init];
-        [composer.backdrop layoutSubtreeIfNeeded];
-        NSCalendar *cCal = [NSCalendar currentCalendar];
-        NSDateComponents *dayParts = [[NSDateComponents alloc] init];
-        dayParts.year = 2026; dayParts.month = 9; dayParts.day = 22;
-        NSDateComponents *timeParts = [[NSDateComponents alloc] init];
-        timeParts.year = 2000; timeParts.month = 1; timeParts.day = 1;
-        timeParts.hour = 17; timeParts.minute = 30;
-        composer.dayPicker.dateValue = [cCal dateFromComponents:dayParts];
-        composer.timePicker.dateValue = [cCal dateFromComponents:timeParts];
-        NSDateComponents *got = [cCal components:(NSCalendarUnitYear |
+        printf("\ncompose row\n");
+        NSCalendar *rowCal = [NSCalendar currentCalendar];
+        NSDateComponents *rowParts = [[NSDateComponents alloc] init];
+        rowParts.year = 2026; rowParts.month = 9; rowParts.day = 22;
+        rowParts.hour = 17; rowParts.minute = 30;
+        NSDate *rowDue = [rowCal dateFromComponents:rowParts];
+        NSMenuItem *rowItem = ComposeRowItem(rowDue, nil, NULL, 372);
+        ComposeRowView *row = (ComposeRowView *)rowItem.view;
+        [row layoutSubtreeIfNeeded];
+        NSDateComponents *chosen = [rowCal components:(NSCalendarUnitYear |
             NSCalendarUnitMonth | NSCalendarUnitDay | NSCalendarUnitHour |
-            NSCalendarUnitMinute) fromDate:[composer chosenDue]];
-
-        struct { const char *label; BOOL ok; } composerChecks[] = {
-            { "day and time are separate", composer.dayPicker != nil &&
-                                           composer.timePicker != nil },
-            { "it is a borderless panel",  composer.panel != nil &&
-                  !(composer.panel.styleMask & NSWindowStyleMaskTitled) &&
-                  [composer.panel canBecomeKeyWindow] },
-            { "it takes the menu width",   ({
-                  [composer showBelow:nil width:412];
-                  NSWidth(composer.backdrop.frame) == 412; }) },
-            { "no buttons in the sheet",   ({
-                  NSMutableArray *q = [@[composer.backdrop] mutableCopy];
-                  BOOL none = YES;
-                  while (q.count) {
-                      NSView *v = q.firstObject;
-                      [q removeObjectAtIndex:0];
-                      if ([v isKindOfClass:[NSButton class]]) none = NO;
-                      [q addObjectsFromArray:v.subviews];
-                  }
-                  none; }) },
-            { "due combines both fields",  got.year == 2026 && got.month == 9 &&
-                  got.day == 22 && got.hour == 17 && got.minute == 30 },
-            { "one add cannot re-enter",   ({
-                  composer.adding = YES;
-                  NSUInteger before = LoadTasks().count;
-                  composer.nameField.stringValue = @"probe task";
-                  [composer add];
-                  composer.adding = NO;
-                  LoadTasks().count == before; }) },
+            NSCalendarUnitMinute) fromDate:[row chosenDue]];
+        struct { const char *label; BOOL ok; } rowChecks[] = {
+            { "name, day and time",     row.nameField != nil && row.dayPicker != nil &&
+                                        row.timePicker != nil },
+            { "day and time combine",   chosen.month == 9 && chosen.day == 22 &&
+                                        chosen.hour == 17 && chosen.minute == 30 },
+            { "pickers have steppers",  row.dayPicker.datePickerStyle ==
+                  NSDatePickerStyleTextFieldAndStepper },
+            { "commit fires once",      ({ [row commit]; BOOL first = row.committed;
+                                           [row commit]; first; }) },
+            { "fields do not overlap",  NSMaxX(row.nameField.frame) <=
+                  NSMinX(row.dayPicker.frame) + 1 &&
+                  NSMaxX(row.dayPicker.frame) <= NSMinX(row.timePicker.frame) + 1 },
         };
-        for (size_t i = 0; i < sizeof(composerChecks) / sizeof(composerChecks[0]); i++) {
-            if (!composerChecks[i].ok) fails++;
-            printf("  %-4s %s\n", composerChecks[i].ok ? "ok" : "FAIL",
-                   composerChecks[i].label);
+        for (size_t i = 0; i < sizeof(rowChecks) / sizeof(rowChecks[0]); i++) {
+            if (!rowChecks[i].ok) fails++;
+            printf("  %-4s %s\n", rowChecks[i].ok ? "ok" : "FAIL", rowChecks[i].label);
         }
 
         printf("\nquick tasks\n");
