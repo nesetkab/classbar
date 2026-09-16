@@ -194,6 +194,7 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 }
 
 - (BOOL)resignFirstResponder {
+    if (self.holdsFocus && self.window) return NO;
     [self stopBlink];
     return [super resignFirstResponder];
 }
@@ -343,6 +344,7 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 - (void)commit {
     if (self.committed) return;
     self.committed = YES;
+    [self editor].holdsFocus = NO;
     self.nameField.delegate = nil;
     if (self.target && self.action)
         ((void (*)(id, SEL, id))objc_msgSend)(self.target, self.action, self);
@@ -376,11 +378,20 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
     return NO;
 }
 
+- (MenuFieldEditor *)editor {
+    NSText *editor = [self.nameField currentEditor];
+    return [editor isKindOfClass:[MenuFieldEditor class]]
+        ? (MenuFieldEditor *)editor : nil;
+}
+
 - (void)viewDidMoveToWindow {
     [super viewDidMoveToWindow];
     if (self.window) {
         [self.window makeFirstResponder:self.nameField];
-        }
+        [self editor].holdsFocus = YES;
+    } else {
+        [self editor].holdsFocus = NO;
+    }
 }
 
 @end

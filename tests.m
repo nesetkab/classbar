@@ -739,6 +739,20 @@ int main(int argc, char **argv) {
                                         chosen.hour == 17 && chosen.minute == 30 },
             { "the day reads as a chip", row.dayChip.stringValue.length > 0 &&
                   [row.dayChip.stringValue containsString:@"/"] },
+            { "focus survives a mouse move", ({
+                  NSWindow *host = [[NSWindow alloc]
+                      initWithContentRect:NSMakeRect(0, 0, 372, 26)
+                                styleMask:NSWindowStyleMaskBorderless
+                                  backing:NSBackingStoreBuffered defer:NO];
+                  NSMenuItem *it6 = ComposeRowItem(@"typed", rowDue,
+                                                   nil, NULL, nil, NULL, 372);
+                  ComposeRowView *r6 = (ComposeRowView *)it6.view;
+                  [host.contentView addSubview:r6];
+                  BOOL editing = [r6.nameField currentEditor] != nil;
+                  BOOL refused = ![host makeFirstResponder:nil];
+                  [r6 commit];
+                  BOOL freed = [host makeFirstResponder:nil];
+                  editing && refused && freed; }) },
             { "the editor owns the caret", ({
                   NSTextView *ed = [(NSTextFieldCell *)row.nameField.cell
                       fieldEditorForView:row.nameField];

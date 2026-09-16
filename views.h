@@ -19,6 +19,7 @@ extern const CGFloat kDoneCircleWidth;
 @interface MenuFieldEditor : NSTextView
 @property (strong) NSTimer *blinkTimer;
 @property (assign) BOOL blinkOn;
+@property (assign) BOOL holdsFocus;
 - (NSRect)caretRect;
 @end
 
