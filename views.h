@@ -19,11 +19,14 @@ extern const CGFloat kDoneCircleWidth;
 @interface ComposeRowView : NSView <NSTextFieldDelegate>
 @property (strong) NSTextField *nameField;
 @property (strong) NSTextField *dayChip;
+@property (strong) NSTextField *timeChip;
 @property (strong, nonatomic) NSDate *dayValue;
-@property (strong) NSDatePicker *timePicker;
+@property (strong, nonatomic) NSDate *timeValue;
 @property (weak)   id chipTarget;
-@property (assign) SEL chipAction;
+@property (assign) SEL dayAction;
+@property (assign) SEL timeAction;
 @property (assign) BOOL dayOpen;
+@property (assign) BOOL timeOpen;
 @property (assign) BOOL committed;
 @property (assign) BOOL cancelled;
 @property (strong) NSLayoutConstraint *nameLeading;
@@ -35,6 +38,16 @@ extern const CGFloat kDoneCircleWidth;
 
 @interface CalendarRowView : NSView
 @property (strong) NSDatePicker *calendar;
+@property (weak)   id target;
+@property (assign) SEL action;
+@end
+
+@interface TimeRowView : NSView
+@property (strong) NSArray *slots;
+- (NSDate *)chosenTime;
+- (NSRect)slotRect:(NSInteger)i;
+@property (assign) NSInteger hovered;
+@property (assign) NSInteger chosen;
 @property (weak)   id target;
 @property (assign) SEL action;
 @end
@@ -74,10 +87,11 @@ NSMenuItem *AssignmentItem(NSDictionary *item, NSString *due, NSString *name,
                            NSString *link, NSString *tip, BOOL late, BOOL done,
                            CGFloat dueWidth, CGFloat width,
                            id target, SEL toggleAction);
-NSMenuItem *ComposeRowItem(NSString *name, NSDate *due, BOOL dayOpen,
-                           id target, SEL action,
-                           id chipTarget, SEL chipAction, CGFloat width);
+NSMenuItem *ComposeRowItem(NSString *name, NSDate *due, BOOL dayOpen, BOOL timeOpen,
+                           id target, SEL action, id chipTarget,
+                           SEL dayAction, SEL timeAction, CGFloat width);
 NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width);
+NSMenuItem *TimeRowItem(NSDate *due, id target, SEL action, CGFloat width);
 NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *room,
                      NSString *link, NSString *zoom, NSString *tip,
                      NSColor *bg, CGFloat width);
