@@ -116,7 +116,7 @@ NSDate *ParseDueFromText(NSString *text, NSDate *now, NSString **cleaned) {
             [NSCharacterSet punctuationCharacterSet]] lowercaseString];
         if (!word.length) continue;
 
-        if ([word isEqualToString:@"today"]) {
+        if ([word isEqualToString:@"today"] || [word isEqualToString:@"td"]) {
             shift = 0; [eaten addIndex:i]; continue;
         }
         if ([word isEqualToString:@"tonight"]) {

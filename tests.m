@@ -797,6 +797,10 @@ int main(int argc, char **argv) {
             { "lunch noon",                     "lunch",             9, 16, 12, 0 },
             { "pset 9/22",                      "pset",              9, 22, 23, 59 },
             { "call mom 5:30pm",                "call mom",          9, 16, 17, 30 },
+            { "pset td",                        "pset",              9, 16, 23, 59 },
+            { "pset td 5p",                     "pset",              9, 16, 17, 0 },
+            { "standup 9a",                     "standup",           9, 16, 9, 0 },
+            { "review 11:30p",                  "review",            9, 16, 23, 30 },
         };
         for (size_t i = 0; i < sizeof(dueCases2) / sizeof(dueCases2[0]); i++) {
             NSString *clean = nil;
