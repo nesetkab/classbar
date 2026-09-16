@@ -164,10 +164,15 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
     self.dayChip.alignment = NSTextAlignmentCenter;
     self.dayChip.translatesAutoresizingMaskIntoConstraints = NO;
 
-    self.timeChip = [NSTextField labelWithString:@""];
+    self.timeChip = [NSTextField textFieldWithString:@""];
     self.timeChip.font = [NSFont systemFontOfSize:11];
     self.timeChip.alignment = NSTextAlignmentCenter;
+    self.timeChip.bordered = NO;
+    self.timeChip.drawsBackground = NO;
+    self.timeChip.focusRingType = NSFocusRingTypeNone;
     self.timeChip.translatesAutoresizingMaskIntoConstraints = NO;
+    self.timeChip.delegate = self;
+    [self.timeChip.widthAnchor constraintEqualToConstant:74].active = YES;
 
     [self addSubview:self.nameField];
     [self addSubview:self.dayChip];
@@ -216,16 +221,23 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 
 - (void)mouseUp:(NSEvent *)e {
     NSPoint pt = [self convertPoint:e.locationInWindow fromView:nil];
-    SEL sel = NULL;
-    if (NSPointInRect(pt, [self dayChipRect])) sel = self.dayAction;
-    else if (NSPointInRect(pt, [self timeChipRect])) sel = self.timeAction;
-    if (sel && self.chipTarget)
-        ((void (*)(id, SEL, id))objc_msgSend)(self.chipTarget, sel, self);
+    if (!NSPointInRect(pt, [self dayChipRect])) return;
+    if (self.dayAction && self.chipTarget)
+        ((void (*)(id, SEL, id))objc_msgSend)(self.chipTarget, self.dayAction, self);
 }
 
 - (NSDate *)chosenDue {
-    return CombineDayAndTime(self.dayValue ?: [NSDate date],
-                             self.timeValue ?: [NSDate date]);
+    NSDate *time = self.timeValue ?: [NSDate date];
+    int minutes = ParseTimeText(self.timeChip.stringValue);
+    if (minutes >= 0) {
+        NSCalendar *cal = [NSCalendar currentCalendar];
+        NSDateComponents *parts = [cal components:(NSCalendarUnitYear |
+            NSCalendarUnitMonth | NSCalendarUnitDay) fromDate:time];
+        parts.hour = minutes / 60;
+        parts.minute = minutes % 60;
+        time = [cal dateFromComponents:parts] ?: time;
+    }
+    return CombineDayAndTime(self.dayValue ?: [NSDate date], time);
 }
 
 - (void)drawChip:(NSRect)rect open:(BOOL)open {
@@ -236,7 +248,7 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 
 - (void)drawRect:(NSRect)dirty __unused {
     [self drawChip:[self dayChipRect] open:self.dayOpen];
-    [self drawChip:[self timeChipRect] open:self.timeOpen];
+    [self drawChip:[self timeChipRect] open:NO];
 }
 
 - (void)commit {
@@ -271,9 +283,9 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 
 @end
 
-NSMenuItem *ComposeRowItem(NSString *name, NSDate *due, BOOL dayOpen, BOOL timeOpen,
+NSMenuItem *ComposeRowItem(NSString *name, NSDate *due, BOOL dayOpen,
                            id target, SEL action, id chipTarget,
-                           SEL dayAction, SEL timeAction, CGFloat width) {
+                           SEL dayAction, CGFloat width) {
     ComposeRowView *v = [[ComposeRowView alloc]
         initWithFrame:NSMakeRect(0, 0, width, 26)];
     v.autoresizingMask = NSViewWidthSizable;
@@ -281,12 +293,10 @@ NSMenuItem *ComposeRowItem(NSString *name, NSDate *due, BOOL dayOpen, BOOL timeO
     v.dayValue = due;
     v.timeValue = due;
     v.dayOpen = dayOpen;
-    v.timeOpen = timeOpen;
     v.target = target;
     v.action = action;
     v.chipTarget = chipTarget;
     v.dayAction = dayAction;
-    v.timeAction = timeAction;
     NSMenuItem *i = [[NSMenuItem alloc] init];
     i.view = v;
     return i;
@@ -327,125 +337,6 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
         initWithFrame:NSMakeRect(0, 0, width, 148)];
     v.autoresizingMask = NSViewWidthSizable;
     v.calendar.dateValue = due ?: [NSDate date];
-    v.target = target;
-    v.action = action;
-    NSMenuItem *i = [[NSMenuItem alloc] init];
-    i.view = v;
-    return i;
-}
-
-@implementation TimeRowView
-
-- (instancetype)initWithFrame:(NSRect)frame {
-    self = [super initWithFrame:frame];
-    if (!self) return self;
-    self.hovered = -1;
-    self.chosen = -1;
-    self.slots = @[ @[@8, @0], @[@9, @0], @[@12, @0], @[@15, @0],
-                    @[@17, @0], @[@20, @0], @[@22, @0], @[@23, @59] ];
-    return self;
-}
-
-- (NSString *)labelAt:(NSInteger)i {
-    NSArray *slot = self.slots[(NSUInteger)i];
-    int hour = [slot[0] intValue], minute = [slot[1] intValue];
-    int shown = hour % 12; if (shown == 0) shown = 12;
-    return [NSString stringWithFormat:@"%d:%02d%s", shown, minute,
-            hour >= 12 ? "p" : "a"];
-}
-
-- (NSRect)slotRect:(NSInteger)i {
-    CGFloat inset = 14, gap = 6;
-    CGFloat w = (NSWidth(self.bounds) - inset * 2 - gap * 3) / 4.0;
-    CGFloat h = 22;
-    NSInteger col = i % 4, rowIndex = i / 4;
-    CGFloat y = NSMaxY(self.bounds) - 8 - (rowIndex + 1) * h - rowIndex * gap;
-    return NSMakeRect(inset + col * (w + gap), y, w, h);
-}
-
-- (NSInteger)slotAt:(NSPoint)pt {
-    for (NSInteger i = 0; i < (NSInteger)self.slots.count; i++)
-        if (NSPointInRect(pt, [self slotRect:i])) return i;
-    return -1;
-}
-
-- (void)updateTrackingAreas {
-    [super updateTrackingAreas];
-    for (NSTrackingArea *a in [self.trackingAreas copy]) [self removeTrackingArea:a];
-    [self addTrackingArea:[[NSTrackingArea alloc]
-        initWithRect:self.bounds
-             options:NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved |
-                     NSTrackingActiveAlways | NSTrackingInVisibleRect
-               owner:self userInfo:nil]];
-}
-
-- (void)mouseMoved:(NSEvent *)e {
-    NSInteger was = self.hovered;
-    self.hovered = [self slotAt:[self convertPoint:e.locationInWindow fromView:nil]];
-    if (was != self.hovered) self.needsDisplay = YES;
-}
-
-- (void)mouseEntered:(NSEvent *)e {
-    [self mouseMoved:e];
-}
-
-- (void)mouseExited:(NSEvent *)e __unused {
-    if (self.hovered == -1) return;
-    self.hovered = -1;
-    self.needsDisplay = YES;
-}
-
-- (void)mouseDown:(NSEvent *)e __unused {
-}
-
-- (void)mouseUp:(NSEvent *)e {
-    NSInteger i = [self slotAt:[self convertPoint:e.locationInWindow fromView:nil]];
-    if (i < 0) return;
-    self.chosen = i;
-    if (self.target && self.action)
-        ((void (*)(id, SEL, id))objc_msgSend)(self.target, self.action, self);
-}
-
-- (NSDate *)chosenTime {
-    if (self.chosen < 0) return nil;
-    NSArray *slot = self.slots[(NSUInteger)self.chosen];
-    NSCalendar *cal = [NSCalendar currentCalendar];
-    NSDateComponents *parts = [cal components:(NSCalendarUnitYear |
-        NSCalendarUnitMonth | NSCalendarUnitDay) fromDate:[NSDate date]];
-    parts.hour = [slot[0] integerValue];
-    parts.minute = [slot[1] integerValue];
-    return [cal dateFromComponents:parts];
-}
-
-- (void)drawRect:(NSRect)dirty __unused {
-    for (NSInteger i = 0; i < (NSInteger)self.slots.count; i++) {
-        NSRect r = [self slotRect:i];
-        BOOL lit = (i == self.hovered);
-        NSBezierPath *p = [NSBezierPath bezierPathWithRoundedRect:r
-                                                          xRadius:5 yRadius:5];
-        [(lit ? [NSColor selectedContentBackgroundColor]
-              : [NSColor colorWithWhite:1.0 alpha:0.08]) setFill];
-        [p fill];
-
-        NSDictionary *attr = @{
-            NSFontAttributeName: [NSFont systemFontOfSize:11],
-            NSForegroundColorAttributeName: lit
-                ? [NSColor alternateSelectedControlTextColor] : [NSColor labelColor]
-        };
-        NSString *text = [self labelAt:i];
-        NSSize sz = [text sizeWithAttributes:attr];
-        [text drawAtPoint:NSMakePoint(NSMidX(r) - sz.width / 2,
-                                      NSMidY(r) - sz.height / 2)
-           withAttributes:attr];
-    }
-}
-
-@end
-
-NSMenuItem *TimeRowItem(NSDate *due, id target, SEL action, CGFloat width) {
-    (void)due;
-    TimeRowView *v = [[TimeRowView alloc] initWithFrame:NSMakeRect(0, 0, width, 66)];
-    v.autoresizingMask = NSViewWidthSizable;
     v.target = target;
     v.action = action;
     NSMenuItem *i = [[NSMenuItem alloc] init];

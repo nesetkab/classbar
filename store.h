@@ -11,6 +11,7 @@ int ClampCap(int n);
 void SplitAssignmentCap(NSUInteger todo, NSUInteger done, NSUInteger cap,
                         NSUInteger *todoShown, NSUInteger *doneShown);
 NSString *HHMMshort(int m);
+int ParseTimeText(NSString *text);
 
 NSISO8601DateFormatter *ISOFormatter(void);
 BOOL WriteCache(NSArray *items);

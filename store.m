@@ -31,6 +31,43 @@ void SplitAssignmentCap(NSUInteger todo, NSUInteger done, NSUInteger cap,
     *doneShown = forDone;
 }
 
+int ParseTimeText(NSString *text) {
+    NSString *low = [[text stringByTrimmingCharactersInSet:
+        [NSCharacterSet whitespaceAndNewlineCharacterSet]] lowercaseString];
+    if (!low.length) return -1;
+
+    BOOL hasAM = [low containsString:@"a"];
+    BOOL hasPM = [low containsString:@"p"];
+
+    NSMutableString *digits = [NSMutableString string];
+    BOOL sawColon = NO;
+    for (NSUInteger i = 0; i < low.length; i++) {
+        unichar c = [low characterAtIndex:i];
+        if (c >= '0' && c <= '9') [digits appendFormat:@"%C", c];
+        else if (c == ':') sawColon = YES;
+    }
+    if (!digits.length) return -1;
+
+    int hour = 0, minute = 0;
+    if (sawColon) {
+        NSArray *parts = [low componentsSeparatedByString:@":"];
+        if (parts.count < 2) return -1;
+        hour = [parts[0] intValue];
+        minute = [[parts[1] stringByTrimmingCharactersInSet:
+            [[NSCharacterSet decimalDigitCharacterSet] invertedSet]] intValue];
+    } else if (digits.length <= 2) {
+        hour = digits.intValue;
+    } else {
+        hour = [[digits substringToIndex:digits.length - 2] intValue];
+        minute = [[digits substringFromIndex:digits.length - 2] intValue];
+    }
+
+    if (hasPM && hour < 12) hour += 12;
+    if (hasAM && hour == 12) hour = 0;
+    if (hour < 0 || hour > 23 || minute < 0 || minute > 59) return -1;
+    return hour * 60 + minute;
+}
+
 NSString *HHMMshort(int m) {
     int h24 = m / 60, mm = m % 60;
     int h = h24 % 12; if (h == 0) h = 12;

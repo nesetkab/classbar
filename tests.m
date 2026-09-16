@@ -680,7 +680,7 @@ int main(int argc, char **argv) {
         rowParts.year = 2026; rowParts.month = 9; rowParts.day = 22;
         rowParts.hour = 17; rowParts.minute = 30;
         NSDate *rowDue = [rowCal dateFromComponents:rowParts];
-        NSMenuItem *rowItem = ComposeRowItem(@"draft", rowDue, NO, NO, nil, NULL, nil, NULL, NULL, 372);
+        NSMenuItem *rowItem = ComposeRowItem(@"draft", rowDue, NO, nil, NULL, nil, NULL, 372);
         ComposeRowView *row = (ComposeRowView *)rowItem.view;
         [row layoutSubtreeIfNeeded];
         NSDateComponents *chosen = [rowCal components:(NSCalendarUnitYear |
@@ -715,19 +715,19 @@ int main(int argc, char **argv) {
             { "commit fires once",      ({ [row commit]; BOOL first = row.committed;
                                            [row commit]; first; }) },
             { "focus loss does not add", ({
-                  NSMenuItem *it2 = ComposeRowItem(@"typed", rowDue, NO, NO, nil, NULL, nil, NULL, NULL, 372);
+                  NSMenuItem *it2 = ComposeRowItem(@"typed", rowDue, NO, nil, NULL, nil, NULL, 372);
                   ComposeRowView *r2 = (ComposeRowView *)it2.view;
                   r2.nameField.target != nil || r2.nameField.action != NULL
                       ? NO : YES; }) },
             { "return commits",          ({
-                  NSMenuItem *it3 = ComposeRowItem(@"typed", rowDue, NO, NO, nil, NULL, nil, NULL, NULL, 372);
+                  NSMenuItem *it3 = ComposeRowItem(@"typed", rowDue, NO, nil, NULL, nil, NULL, 372);
                   ComposeRowView *r3 = (ComposeRowView *)it3.view;
                   NSTextView *probe3 = [[NSTextView alloc] init];
                   [r3 control:r3.nameField textView:probe3
                       doCommandBySelector:@selector(insertNewline:)];
                   r3.committed && !r3.cancelled; }) },
             { "escape cancels",          ({
-                  NSMenuItem *it4 = ComposeRowItem(@"typed", rowDue, NO, NO, nil, NULL, nil, NULL, NULL, 372);
+                  NSMenuItem *it4 = ComposeRowItem(@"typed", rowDue, NO, nil, NULL, nil, NULL, 372);
                   ComposeRowView *r4 = (ComposeRowView *)it4.view;
                   NSTextView *probe4 = [[NSTextView alloc] init];
                   [r4 control:r4.nameField textView:probe4
@@ -741,16 +741,7 @@ int main(int argc, char **argv) {
             { "the time reads as a chip", row.timeChip.stringValue.length > 0 &&
                   ([row.timeChip.stringValue containsString:@"AM"] ||
                    [row.timeChip.stringValue containsString:@"PM"]) },
-            { "a time row offers slots", ({
-                  NSMenuItem *t = TimeRowItem(rowDue, nil, NULL, 372);
-                  TimeRowView *tv = (TimeRowView *)t.view;
-                  tv.frame = NSMakeRect(0, 0, 372, 66);
-                  BOOL ok8 = tv.slots.count == 8;
-                  for (NSInteger i = 0; ok8 && i < 8; i++) {
-                      NSRect r = [tv slotRect:i];
-                      ok8 = NSWidth(r) > 20 && NSMaxX(r) <= 372 && NSMinY(r) >= 0;
-                  }
-                  ok8; }) },
+            { "the time field is typeable", row.timeChip.isEditable },
         };
         for (size_t i = 0; i < sizeof(rowChecks) / sizeof(rowChecks[0]); i++) {
             if (!rowChecks[i].ok) fails++;
@@ -789,6 +780,31 @@ int main(int argc, char **argv) {
         for (size_t i = 0; i < sizeof(taskChecks) / sizeof(taskChecks[0]); i++) {
             if (!taskChecks[i].ok) fails++;
             printf("  %-4s %s\n", taskChecks[i].ok ? "ok" : "FAIL", taskChecks[i].label);
+        }
+
+        printf("\ntyping a time\n");
+        struct { const char *in; int want; } timeCases[] = {
+            { "5",        5 * 60 },
+            { "5pm",      17 * 60 },
+            { "5 PM",     17 * 60 },
+            { "5:30pm",   17 * 60 + 30 },
+            { "17:30",    17 * 60 + 30 },
+            { "1730",     17 * 60 + 30 },
+            { "11:59 PM", 23 * 60 + 59 },
+            { "12am",     0 },
+            { "12pm",     12 * 60 },
+            { "9:05a",    9 * 60 + 5 },
+            { "",         -1 },
+            { "banana",   -1 },
+            { "25:00",    -1 },
+            { "5:70",     -1 },
+        };
+        for (size_t i = 0; i < sizeof(timeCases) / sizeof(timeCases[0]); i++) {
+            int got3 = ParseTimeText(@(timeCases[i].in));
+            BOOL ok3 = got3 == timeCases[i].want;
+            if (!ok3) fails++;
+            printf("  %-4s %-10s -> %d\n", ok3 ? "ok" : "FAIL",
+                   timeCases[i].in, got3);
         }
 
         printf("\ndue labels\n");
