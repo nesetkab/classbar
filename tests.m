@@ -141,7 +141,7 @@ int main(int argc, char **argv) {
         }
 
         if (argc > 2 && strcmp(argv[1], "--footer") == 0) {
-            NSArray *states = @[@"idle", @"quit", @"refresh", @"gear"];
+            NSArray *states = @[@"idle", @"quit", @"refresh", @"plus", @"gear"];
             CGFloat w = 300, h = 26, pad = 12;
             NSImage *sheet = [[NSImage alloc]
                 initWithSize:NSMakeSize(w + pad * 2,
@@ -157,6 +157,7 @@ int main(int argc, char **argv) {
                 f.hovered = ![st isEqualToString:@"idle"];
                 f.overQuit = [st isEqualToString:@"quit"];
                 f.overRefresh = [st isEqualToString:@"refresh"];
+                f.overPlus = [st isEqualToString:@"plus"];
                 f.overGear = [st isEqualToString:@"gear"];
                 f.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
                 NSRect slot = NSMakeRect(pad,
@@ -648,6 +649,64 @@ int main(int argc, char **argv) {
         for (size_t i = 0; i < sizeof(tripChecks) / sizeof(tripChecks[0]); i++) {
             if (!tripChecks[i].ok) fails++;
             printf("  %-4s %s\n", tripChecks[i].ok ? "ok" : "FAIL", tripChecks[i].label);
+        }
+
+        printf("\nquick tasks\n");
+        NSDate *taskNow = ISODate(@"2026-09-15T00:00:00Z");
+        NSArray *rawTasks = @[
+            @{ @"name": @"Write poem", @"due": @"2026-09-20T03:59:59Z" },
+            @{ @"name": @"Old thing",  @"due": @"2026-09-10T03:59:59Z" },
+            @{ @"name": @"",           @"due": @"2026-09-20T03:59:59Z" },
+            @{ @"name": @"No date" },
+            @"junk",
+        ];
+        NSArray *keptTasks = PruneTasks(rawTasks, taskNow);
+        struct { const char *label; BOOL ok; } taskChecks[] = {
+            { "pending tasks survive",   keptTasks.count == 2 },
+            { "past due tasks are gone", ({ BOOL none = YES;
+                  for (NSDictionary *t in keptTasks)
+                      if ([t[@"name"] isEqualToString:@"Old thing"]) none = NO;
+                  none; }) },
+            { "nameless tasks dropped",  ({ BOOL none = YES;
+                  for (NSDictionary *t in keptTasks)
+                      if (![t[@"name"] length]) none = NO;
+                  none; }) },
+            { "undated tasks survive",   ({ BOOL found = NO;
+                  for (NSDictionary *t in keptTasks)
+                      if ([t[@"name"] isEqualToString:@"No date"]) found = YES;
+                  found; }) },
+            { "junk is ignored",         keptTasks.count == 2 },
+            { "tasks are marked",        [keptTasks.firstObject[@"task"] boolValue] },
+            { "a task can be marked done", [DoneKey(keptTasks.firstObject)
+                  isEqualToString:@"Write poem|"] },
+        };
+        for (size_t i = 0; i < sizeof(taskChecks) / sizeof(taskChecks[0]); i++) {
+            if (!taskChecks[i].ok) fails++;
+            printf("  %-4s %s\n", taskChecks[i].ok ? "ok" : "FAIL", taskChecks[i].label);
+        }
+
+        printf("\ndue labels\n");
+        NSCalendar *dueCal = [NSCalendar currentCalendar];
+        NSDate *midnight = nil;
+        [dueCal rangeOfUnit:NSCalendarUnitDay startDate:&midnight
+                   interval:NULL forDate:[NSDate date]];
+        struct { const char *label; int addDays; } dueCases[] = {
+            { "a week out is numeric", 8 },
+            { "far out is numeric",   40 },
+        };
+        for (size_t i = 0; i < sizeof(dueCases) / sizeof(dueCases[0]); i++) {
+            NSDateComponents *add = [[NSDateComponents alloc] init];
+            add.day = dueCases[i].addDays;
+            NSDate *d = [dueCal dateByAddingComponents:add toDate:midnight options:0];
+            NSString *got = DueLabel(dueCal, d);
+            NSDateComponents *c = [dueCal components:
+                (NSCalendarUnitMonth | NSCalendarUnitDay) fromDate:d];
+            NSString *want = [NSString stringWithFormat:@"%ld/%ld",
+                              (long)c.month, (long)c.day];
+            BOOL ok = [got isEqualToString:want];
+            if (!ok) fails++;
+            printf("  %-4s %-24s %s\n", ok ? "ok" : "FAIL",
+                   dueCases[i].label, got.UTF8String);
         }
 
         printf("\nassignment cache\n");

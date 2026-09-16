@@ -37,6 +37,14 @@ static NSString *GearSVG(NSString *hex) {
          "stroke-linecap=\"round\" stroke-linejoin=\"round\"/></svg>", hex, hex];
 }
 
+static NSString *PlusSVG(NSString *hex) {
+    return [NSString stringWithFormat:
+        @"<svg width=\"24\" height=\"24\" viewBox=\"0 0 24 24\" fill=\"none\" "
+         "xmlns=\"http://www.w3.org/2000/svg\">"
+         "<path d=\"M12 5V19M5 12H19\" stroke=\"%@\" stroke-width=\"2\" "
+         "stroke-linecap=\"round\"/></svg>", hex];
+}
+
 static NSImage *SVGImage(NSData *data, NSSize size) {
     NSImage *img = [[NSImage alloc] initWithData:data];
     if (!img) return nil;
@@ -58,5 +66,10 @@ NSImage *RefreshIconImage(BOOL dark) {
 
 NSImage *GearIconImage(BOOL dark) {
     NSString *svg = GearSVG(dark ? @"#FFFFFF" : @"#000000");
+    return SVGImage([svg dataUsingEncoding:NSUTF8StringEncoding], NSMakeSize(14, 14));
+}
+
+NSImage *PlusIconImage(BOOL dark) {
+    NSString *svg = PlusSVG(dark ? @"#FFFFFF" : @"#000000");
     return SVGImage([svg dataUsingEncoding:NSUTF8StringEncoding], NSMakeSize(14, 14));
 }

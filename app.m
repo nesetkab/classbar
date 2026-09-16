@@ -3,6 +3,7 @@
 #import "app.h"
 #import "views.h"
 #import "settings.h"
+#import "quickadd.h"
 #import "ics.h"
 #import "schedule.h"
 #import "store.h"
@@ -18,6 +19,7 @@
 @property (strong) NSArray *cachedItems;
 @property (strong) NSMutableSet *sessionMarks;
 @property (strong) SettingsWindow *settings;
+@property (strong) QuickAddWindow *quickAdd;
 @property (copy)   NSString *link;
 @end
 
@@ -70,10 +72,16 @@ static const NSTimeInterval kStaleSeconds = 300;
 
     NSDate *now = [NSDate date];
     self.cachedItems = LoadUpcoming();
+    NSMutableArray *feedAndTasks = [self.cachedItems mutableCopy];
+    [feedAndTasks addObjectsFromArray:LoadTasks()];
+    [feedAndTasks sortUsingComparator:^NSComparisonResult(NSDictionary *x,
+                                                          NSDictionary *y) {
+        return [(x[@"due"] ?: @"") compare:(y[@"due"] ?: @"")];
+    }];
     NSDictionary *doneMap = LoadDone();
     if (!self.sessionMarks) self.sessionMarks = [NSMutableSet set];
     NSMutableArray *pending = [NSMutableArray array];
-    for (NSDictionary *a in self.cachedItems) {
+    for (NSDictionary *a in feedAndTasks) {
         if (![a isKindOfClass:[NSDictionary class]]) continue;
         NSDate *due = ParseISO(a[@"due"]);
         if (due && [due compare:now] == NSOrderedAscending) continue;
@@ -167,6 +175,7 @@ static const NSTimeInterval kStaleSeconds = 300;
     fv.quitAction = @selector(quitApp);
     fv.refreshAction = @selector(refreshNow);
     fv.settingsAction = @selector(openSettings);
+    fv.plusAction = @selector(openQuickAdd);
     fv.status = self.fetching ? @"Syncing…" : CacheAgeLabel();
     self.footer = fv;
     self.liveMenu = menu;
@@ -222,6 +231,14 @@ static const NSTimeInterval kStaleSeconds = 300;
         self.settings.refreshAction = @selector(refreshNow);
     }
     [self.settings show];
+}
+
+- (void)openQuickAdd {
+    if (!self.quickAdd) {
+        self.quickAdd = [[QuickAddWindow alloc] init];
+        self.quickAdd.target = self;
+    }
+    [self.quickAdd show];
 }
 
 - (void)settingsSaved {

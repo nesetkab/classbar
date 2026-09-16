@@ -52,17 +52,6 @@ static BOOL IcsDateOnly(NSArray *parts, NSString *value) {
     return value.length == 8;
 }
 
-static NSDate *EndOfDay(NSDate *date) {
-    NSCalendar *cal = [NSCalendar currentCalendar];
-    NSDateComponents *c = [cal components:(NSCalendarUnitYear | NSCalendarUnitMonth |
-                                           NSCalendarUnitDay)
-                                 fromDate:date];
-    c.hour = 23;
-    c.minute = 59;
-    c.second = 59;
-    return [cal dateFromComponents:c] ?: date;
-}
-
 static NSString *FirstGroup(NSString *text, NSString *pattern) {
     if (!text.length) return nil;
     NSRegularExpression *re = [NSRegularExpression regularExpressionWithPattern:pattern

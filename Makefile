@@ -7,8 +7,8 @@ BUNDLE_ID ?= local.classbar
 SIGN_IDENTITY ?= -
 PREFIX ?= $(HOME)/Applications
 
-LIB := icons.m store.m schedule.m ics.m views.m settings.m app.m
-HEADERS := store.h schedule.h ics.h views.h settings.h app.h icons.h
+LIB := icons.m store.m schedule.m ics.m views.m quickadd.m settings.m app.m
+HEADERS := store.h schedule.h ics.h views.h quickadd.h settings.h app.h icons.h
 
 APP := $(PREFIX)/$(APP_NAME).app
 EXEC := $(APP)/Contents/MacOS/$(APP_NAME)

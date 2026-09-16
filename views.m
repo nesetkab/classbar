@@ -515,8 +515,12 @@ NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *
     return NSMakeRect(NSMaxX(self.bounds) - 34, NSMidY(self.bounds) - 9, 20, 18);
 }
 
-- (NSRect)refreshRect {
+- (NSRect)plusRect {
     return NSOffsetRect([self gearRect], -28, 0);
+}
+
+- (NSRect)refreshRect {
+    return NSOffsetRect([self plusRect], -28, 0);
 }
 
 - (void)updateTrackingAreas {
@@ -532,11 +536,13 @@ NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *
 
 - (void)syncAt:(NSPoint)pt {
     BOOL refresh = NSPointInRect(pt, NSInsetRect([self refreshRect], -4, -4));
+    BOOL plus = NSPointInRect(pt, NSInsetRect([self plusRect], -4, -4));
     BOOL gear = NSPointInRect(pt, NSInsetRect([self gearRect], -4, -4));
     BOOL quit = NSPointInRect(pt, [self quitRect]);
     if (refresh != self.overRefresh || gear != self.overGear ||
-        quit != self.overQuit || !self.hovered) {
+        plus != self.overPlus || quit != self.overQuit || !self.hovered) {
         self.overRefresh = refresh;
+        self.overPlus = plus;
         self.overGear = gear;
         self.overQuit = quit;
         self.hovered = YES;
@@ -555,6 +561,7 @@ NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *
 - (void)mouseExited:(NSEvent *)e {
     self.hovered = NO;
     self.overRefresh = NO;
+    self.overPlus = NO;
     self.overGear = NO;
     self.overQuit = NO;
     self.needsDisplay = YES;
@@ -565,6 +572,9 @@ NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *
     SEL sel = NULL;
     if (NSPointInRect(pt, NSInsetRect([self refreshRect], -4, -4))) {
         sel = self.refreshAction;
+    } else if (NSPointInRect(pt, NSInsetRect([self plusRect], -4, -4))) {
+        [self.enclosingMenuItem.menu cancelTracking];
+        sel = self.plusAction;
     } else if (NSPointInRect(pt, NSInsetRect([self gearRect], -4, -4))) {
         [self.enclosingMenuItem.menu cancelTracking];
         sel = self.settingsAction;
@@ -624,6 +634,8 @@ NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *
 
     [self drawIcon:RefreshIconImage(dark || self.overRefresh)
             inRect:[self refreshRect] lit:self.overRefresh];
+    [self drawIcon:PlusIconImage(dark || self.overPlus)
+            inRect:[self plusRect] lit:self.overPlus];
     [self drawIcon:GearIconImage(dark || self.overGear)
             inRect:[self gearRect] lit:self.overGear];
 }

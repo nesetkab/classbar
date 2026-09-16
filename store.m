@@ -112,16 +112,26 @@ NSString *DueLabel(NSCalendar *cal, NSDate *due) {
     if (days == 1) return [NSString stringWithFormat:@"tmr %@", clock];
     if (days < 7)  return [NSString stringWithFormat:@"%ldd", (long)days];
 
-    static const char *mon[] = {"Jan","Feb","Mar","Apr","May","Jun",
-                                "Jul","Aug","Sep","Oct","Nov","Dec"};
-    NSDateComponents *c = [cal components:(NSCalendarUnitMonth|NSCalendarUnitDay) fromDate:due];
-    return [NSString stringWithFormat:@"%s %ld", mon[c.month - 1], (long)c.day];
+    NSDateComponents *c = [cal components:(NSCalendarUnitMonth|NSCalendarUnitDay)
+                                 fromDate:due];
+    return [NSString stringWithFormat:@"%ld/%ld", (long)c.month, (long)c.day];
 }
 
 NSString *Clip(NSString *s, NSUInteger n) {
     s = [s stringByTrimmingCharactersInSet:[NSCharacterSet whitespaceAndNewlineCharacterSet]];
     if (s.length <= n) return s;
     return [[s substringToIndex:n - 1] stringByAppendingString:@"…"];
+}
+
+NSDate *EndOfDay(NSDate *date) {
+    NSCalendar *cal = [NSCalendar currentCalendar];
+    NSDateComponents *c = [cal components:(NSCalendarUnitYear | NSCalendarUnitMonth |
+                                           NSCalendarUnitDay)
+                                 fromDate:date];
+    c.hour = 23;
+    c.minute = 59;
+    c.second = 59;
+    return [cal dateFromComponents:c] ?: date;
 }
 
 NSURL *FeedURL(NSString *raw) {
@@ -241,4 +251,55 @@ void RestoreDone(NSArray *keys) {
     NSMutableDictionary *map = ReadDone(NULL);
     [map removeObjectsForKeys:keys];
     WriteDone(map);
+}
+
+NSString *TasksPath(void) {
+    return [NSHomeDirectory() stringByAppendingPathComponent:
+            @"Library/Application Support/classbar/tasks.json"];
+}
+
+static void WriteTasks(NSArray *tasks) {
+    NSData *d = [NSJSONSerialization dataWithJSONObject:@{ @"tasks": tasks }
+                                                options:NSJSONWritingPrettyPrinted
+                                                  error:NULL];
+    if (!d) return;
+    [[NSFileManager defaultManager]
+        createDirectoryAtPath:[TasksPath() stringByDeletingLastPathComponent]
+      withIntermediateDirectories:YES attributes:nil error:NULL];
+    [d writeToFile:TasksPath() atomically:YES];
+}
+
+NSArray *PruneTasks(NSArray *tasks, NSDate *now) {
+    NSMutableArray *kept = [NSMutableArray array];
+    for (id t in tasks) {
+        if (![t isKindOfClass:[NSDictionary class]]) continue;
+        NSString *name = StringField(t, @"name");
+        NSString *due = StringField(t, @"due");
+        if (!name.length) continue;
+        NSDate *when = ParseISO(due);
+        if (when && [when compare:now] == NSOrderedAscending) continue;
+        [kept addObject:@{ @"name": name, @"due": due, @"task": @YES }];
+    }
+    return kept;
+}
+
+NSArray *LoadTasks(void) {
+    NSData *d = [NSData dataWithContentsOfFile:TasksPath()];
+    id root = d ? [NSJSONSerialization JSONObjectWithData:d options:0 error:NULL] : nil;
+    NSArray *raw = [root isKindOfClass:[NSDictionary class]] ? root[@"tasks"] : nil;
+    if (![raw isKindOfClass:[NSArray class]]) return @[];
+    NSArray *kept = PruneTasks(raw, [NSDate date]);
+    if (kept.count != raw.count) WriteTasks(kept);
+    return kept;
+}
+
+void AddTask(NSString *name, NSDate *due) {
+    NSString *trimmed = [name stringByTrimmingCharactersInSet:
+        [NSCharacterSet whitespaceAndNewlineCharacterSet]];
+    if (!trimmed.length) return;
+    NSMutableArray *tasks = [LoadTasks() mutableCopy];
+    [tasks addObject:@{ @"name": trimmed,
+                        @"due": [ISOFormatter() stringFromDate:EndOfDay(due)],
+                        @"task": @YES }];
+    WriteTasks(tasks);
 }
