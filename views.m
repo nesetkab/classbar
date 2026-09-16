@@ -13,6 +13,18 @@ static const CGFloat kTextInset = 9.0;
 static const CGFloat kRowRadius = 6.0;
 static const CGFloat kRailWidth = 3.0;
 
+NSString *SquashKey(NSString *s) {
+    if (![s isKindOfClass:[NSString class]]) return @"";
+    NSMutableString *out = [NSMutableString string];
+    NSString *low = s.lowercaseString;
+    for (NSUInteger i = 0; i < low.length; i++) {
+        unichar c = [low characterAtIndex:i];
+        if ((c >= 'a' && c <= 'z') || (c >= '0' && c <= '9'))
+            [out appendFormat:@"%C", c];
+    }
+    return out;
+}
+
 NSColor *CourseColor(NSString *key) {
     static NSArray *palette;
     if (!palette)
@@ -22,11 +34,11 @@ NSColor *CourseColor(NSString *key) {
                     [NSColor colorWithSRGBRed:0.965 green:0.694 blue:0.741 alpha:1.0],
                     [NSColor colorWithSRGBRed:0.651 green:0.839 blue:0.933 alpha:1.0],
                     [NSColor colorWithSRGBRed:0.937 green:0.878 blue:0.671 alpha:1.0]];
-    if (!key.length) return nil;
+    NSString *squashed = SquashKey(key);
+    if (!squashed.length) return nil;
     unsigned long hash = 5381;
-    NSString *low = key.lowercaseString;
-    for (NSUInteger i = 0; i < low.length; i++)
-        hash = hash * 33 + [low characterAtIndex:i];
+    for (NSUInteger i = 0; i < squashed.length; i++)
+        hash = hash * 33 + [squashed characterAtIndex:i];
     return palette[hash % palette.count];
 }
 

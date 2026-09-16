@@ -26,18 +26,18 @@
 @property (copy)   NSString *link;
 @end
 
-static NSColor *RailForCourse(Schedule *s, NSString *course) {
-    if (![course isKindOfClass:[NSString class]] || !course.length) return nil;
-    NSString *low = course.lowercaseString;
+NSColor *RailForCourse(Schedule *s, NSString *course) {
+    NSString *want = SquashKey(course);
+    if (!want.length) return nil;
     for (NSArray *day in s.byDay)
         for (NSDictionary *c in day) {
-            NSString *code = [c[@"code"] length] ? [c[@"code"] lowercaseString] : nil;
-            NSString *name = [c[@"name"] length] ? [c[@"name"] lowercaseString] : nil;
-            if ((code && ([low isEqualToString:code] || [low containsString:code])) ||
-                (name && ([low isEqualToString:name] || [low containsString:name])))
-                return CourseColor(code ?: name);
+            NSString *code = SquashKey(c[@"code"]);
+            NSString *name = SquashKey(c[@"name"]);
+            if ((code.length && [want hasPrefix:code]) ||
+                (name.length && [want containsString:name]))
+                return CourseColor(code.length ? code : name);
         }
-    return nil;
+    return CourseColor([course componentsSeparatedByString:@"."].firstObject);
 }
 
 static const NSTimeInterval kRefreshFloorSeconds = 10;

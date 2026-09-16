@@ -683,6 +683,16 @@ int main(int argc, char **argv) {
             { "courses differ",
                   CourseColor(@"CHEM 1151") != CourseColor(@"MATH 1342") },
             { "no course has no colour",  CourseColor(@"") == nil },
+            { "canvas course ids find the class", ({
+                  NSColor *one = RailForCourse(gSched, @"CHEM1151.11337.202710");
+                  NSColor *two = RailForCourse(gSched, @"CRWT1170.22544.202710");
+                  one == CourseColor(@"CHEM 1151") &&
+                      two == CourseColor(@"CRWT 1170") && one != two; }) },
+            { "an unknown course still gets one",
+                  RailForCourse(gSched, @"GE1000.10290.202710") != nil },
+            { "a task has no rail",  RailForCourse(gSched, @"") == nil },
+            { "spacing does not matter",
+                  [SquashKey(@"CHEM 1151") isEqualToString:@"chem1151"] },
             { "pale is lighter", ({
                   NSColor *base = [CourseColor(@"GE 1501")
                       colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];

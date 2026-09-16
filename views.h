@@ -92,5 +92,6 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width);
 NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *room,
                      NSString *link, NSString *zoom, NSString *tip,
                      NSColor *bg, CGFloat progress, CGFloat width);
+NSString *SquashKey(NSString *s);
 NSColor *CourseColor(NSString *key);
 NSColor *PaleColor(NSColor *c);
