@@ -87,8 +87,8 @@ static BOOL CardHasDetail(NSString *when, NSString *room, NSString *zoom) {
 
 static CGFloat CardHeight(NSString *when, NSString *room, NSString *zoom,
                           CGFloat progress) {
-    if (!CardHasDetail(when, room, zoom)) return 34.0;
-    return progress > 0 ? 62.0 : 52.0;
+    if (!CardHasDetail(when, room, zoom)) return 38.0;
+    return progress > 0 ? 66.0 : 56.0;
 }
 
 static NSPanel *gTipPanel;
@@ -572,7 +572,7 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
 
 - (NSRect)pillRect {
     if (!self.zoom.length) return NSZeroRect;
-    NSRect box = NSInsetRect(self.bounds, kRowInset, 3);
+    NSRect box = NSInsetRect(self.bounds, kRowInset, kRowInset);
     NSDictionary *f = @{ NSFontAttributeName:
         [NSFont systemFontOfSize:9.5 weight:NSFontWeightSemibold] };
     CGFloat w = ceil([@"zoom" sizeWithAttributes:f].width) + 25;
@@ -607,7 +607,7 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
 }
 
 - (void)drawRect:(NSRect)dirty {
-    NSRect box = NSInsetRect(self.bounds, kRowInset, 3);
+    NSRect box = NSInsetRect(self.bounds, kRowInset, kRowInset);
     NSBezierPath *p = [NSBezierPath bezierPathWithRoundedRect:box
                                                       xRadius:kRowRadius
                                                       yRadius:kRowRadius];
