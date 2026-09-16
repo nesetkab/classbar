@@ -533,11 +533,22 @@ NSFont *NameFont(void) {
     clip.lineBreakMode = NSLineBreakByTruncatingTail;
     nameAttr[NSParagraphStyleAttributeName] = clip;
 
-    NSSize ds = [self.due sizeWithAttributes:dueAttr];
+    NSMutableAttributedString *due =
+        [[NSMutableAttributedString alloc] initWithString:self.due ?: @""
+                                              attributes:dueAttr];
+    NSRange gap = [self.due rangeOfString:@" "];
+    if (gap.location != NSNotFound) {
+        NSRange tail = NSMakeRange(gap.location,
+                                   self.due.length - gap.location);
+        [due addAttribute:NSForegroundColorAttributeName
+                    value:[dueColor colorWithAlphaComponent:0.55] range:tail];
+    }
+
+    NSSize ds = due.size;
     NSSize ns = [self.name sizeWithAttributes:nameAttr];
     CGFloat x = NSMinX([self rowRect]) + 9;
-    [self.due drawAtPoint:NSMakePoint(x, NSMidY(self.bounds) - ds.height / 2)
-           withAttributes:dueAttr];
+    [due drawAtPoint:NSMakePoint(x + self.dueWidth - ceil(ds.width),
+                                 NSMidY(self.bounds) - ds.height / 2)];
 
     CGFloat nameX = x + self.dueWidth + kDueColumnGap;
     CGFloat nameW = NSMinX([self circleRect]) - 7 - nameX;
