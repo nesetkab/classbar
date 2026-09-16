@@ -8,6 +8,10 @@
 const CGFloat kDueColumnGap = 10.0;
 const CGFloat kDoneCircleWidth = 26.0;
 
+static const CGFloat kRowInset = 5.0;
+static const CGFloat kTextInset = 9.0;
+static const CGFloat kRowRadius = 6.0;
+
 static NSImage *Symbol(NSString *name, CGFloat pt, NSColor *color) {
     NSImage *img = [NSImage imageWithSystemSymbolName:name accessibilityDescription:nil];
     if (!img) return nil;
@@ -276,7 +280,7 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
     [self addSubview:self.dayChip];
     [self addSubview:self.timeChip];
     self.nameLeading = [self.nameField.leadingAnchor
-        constraintEqualToAnchor:self.leadingAnchor constant:14];
+        constraintEqualToAnchor:self.leadingAnchor constant:kRowInset + kTextInset];
     [NSLayoutConstraint activateConstraints:@[
         self.nameLeading,
         [self.nameField.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
@@ -287,7 +291,7 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
         [self.timeChip.leadingAnchor
             constraintEqualToAnchor:self.dayChip.trailingAnchor constant:8],
         [self.timeChip.trailingAnchor constraintEqualToAnchor:self.trailingAnchor
-                                                     constant:-10],
+                                       constant:-(kRowInset + kTextInset)],
         [self.timeChip.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
     ]];
     return self;
@@ -376,7 +380,7 @@ NSMenuItem *ComposeRowItem(NSString *name, NSDate *due,
                            id target, SEL action, id chipTarget,
                            SEL dayAction, CGFloat width) {
     ComposeRowView *v = [[ComposeRowView alloc]
-        initWithFrame:NSMakeRect(0, 0, width, 26)];
+        initWithFrame:NSMakeRect(0, 0, width, 22)];
     v.autoresizingMask = NSViewWidthSizable;
     [v.nameField setString:name ?: @""];
     v.typedBase = [NSDate date];
@@ -519,12 +523,12 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
 
 - (NSRect)pillRect {
     if (!self.zoom.length) return NSZeroRect;
-    NSRect box = NSInsetRect(self.bounds, 7, 3);
+    NSRect box = NSInsetRect(self.bounds, kRowInset, 3);
     NSDictionary *f = @{ NSFontAttributeName:
         [NSFont systemFontOfSize:9.5 weight:NSFontWeightSemibold] };
     CGFloat w = ceil([@"zoom" sizeWithAttributes:f].width) + 25;
     CGFloat h = 15;
-    CGFloat x = NSMaxX(box) - 8 - w;
+    CGFloat x = NSMaxX(box) - kTextInset - w;
     CGFloat y = NSMinY(box) + (NSHeight(box) * 0.5 - h) * 0.5 + 1;
     if (x < NSMinX(box) + 8) x = NSMinX(box) + 8;
     if (y < NSMinY(box) + 3) y = NSMinY(box) + 3;
@@ -554,8 +558,10 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
 }
 
 - (void)drawRect:(NSRect)dirty {
-    NSRect box = NSInsetRect(self.bounds, 7, 3);
-    NSBezierPath *p = [NSBezierPath bezierPathWithRoundedRect:box xRadius:7 yRadius:7];
+    NSRect box = NSInsetRect(self.bounds, kRowInset, 3);
+    NSBezierPath *p = [NSBezierPath bezierPathWithRoundedRect:box
+                                                      xRadius:kRowRadius
+                                                      yRadius:kRowRadius];
     NSColor *fill = self.bg;
     if (self.hovered && !self.overPill) {
         NSColor *c = [self.bg colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
@@ -592,13 +598,14 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
             initWithString:[NSString stringWithFormat:@"  (%@)", self.code] attributes:cAttr]];
     }
     if (!CardHasDetail(self.when, self.room, self.zoom)) {
-        [head drawAtPoint:NSMakePoint(NSMinX(box) + 9,
+        [head drawAtPoint:NSMakePoint(NSMinX(box) + kTextInset,
                                       NSMidY(box) - [head size].height * 0.5)];
         return;
     }
 
-    [head drawAtPoint:NSMakePoint(NSMinX(box) + 9, topY)];
-    [self.when drawAtPoint:NSMakePoint(NSMinX(box) + 9, botY) withAttributes:sAttr];
+    [head drawAtPoint:NSMakePoint(NSMinX(box) + kTextInset, topY)];
+    [self.when drawAtPoint:NSMakePoint(NSMinX(box) + kTextInset, botY)
+            withAttributes:sAttr];
 
     if (self.zoom.length) {
         NSRect pill = [self pillRect];
@@ -618,7 +625,7 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
                    NSMakeRect(tx + zs.width + 2, NSMinY(pill), 11, NSHeight(pill)));
     } else {
         NSSize rs = [self.room sizeWithAttributes:sAttr];
-        [self.room drawAtPoint:NSMakePoint(NSMaxX(box) - 9 - rs.width, botY)
+        [self.room drawAtPoint:NSMakePoint(NSMaxX(box) - kTextInset - rs.width, botY)
                 withAttributes:sAttr];
     }
 }
@@ -638,13 +645,14 @@ NSFont *NameFont(void) {
 @implementation AssignmentView
 
 - (NSRect)rowRect {
-    return NSMakeRect(5, 1, NSWidth(self.bounds) - 10, NSHeight(self.bounds) - 2);
+    return NSMakeRect(kRowInset, 1, NSWidth(self.bounds) - kRowInset * 2,
+                      NSHeight(self.bounds) - 2);
 }
 
 - (NSRect)circleRect {
     NSRect r = [self rowRect];
     CGFloat d = 13;
-    return NSMakeRect(NSMaxX(r) - d - 9, NSMidY(r) - d / 2, d, d);
+    return NSMakeRect(NSMaxX(r) - d - kTextInset, NSMidY(r) - d / 2, d, d);
 }
 
 - (void)syncHoverAt:(NSPoint)pt {
@@ -718,7 +726,8 @@ NSFont *NameFont(void) {
 - (void)drawRect:(NSRect)dirty __unused {
     if (self.hovered) {
         NSBezierPath *p = [NSBezierPath bezierPathWithRoundedRect:[self rowRect]
-                                                          xRadius:5 yRadius:5];
+                                                          xRadius:kRowRadius
+                                                          yRadius:kRowRadius];
         [[NSColor selectedContentBackgroundColor] setFill];
         [p fill];
     }
@@ -758,7 +767,7 @@ NSFont *NameFont(void) {
 
     NSSize ds = due.size;
     NSSize ns = [self.name sizeWithAttributes:nameAttr];
-    CGFloat nameX = NSMinX([self rowRect]) + 9;
+    CGFloat nameX = NSMinX([self rowRect]) + kTextInset;
     CGFloat dueRight = NSMinX([self circleRect]) - 8;
 
     [due drawAtPoint:NSMakePoint(dueRight - ceil(ds.width),
@@ -811,11 +820,13 @@ NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *
 
 - (NSRect)quitRect {
     NSSize s = [@"quit" sizeWithAttributes:[self quitAttributes]];
-    return NSMakeRect(5, NSMidY(self.bounds) - 11, ceil(s.width) + 18, 22);
+    return NSMakeRect(kRowInset, NSMidY(self.bounds) - 11,
+                      ceil(s.width) + kTextInset * 2, 22);
 }
 
 - (NSRect)gearRect {
-    return NSMakeRect(NSMaxX(self.bounds) - 34, NSMidY(self.bounds) - 9, 20, 18);
+    return NSMakeRect(NSMaxX(self.bounds) - kRowInset - kTextInset - 20,
+                      NSMidY(self.bounds) - 9, 20, 18);
 }
 
 - (NSRect)plusRect {
@@ -907,7 +918,8 @@ NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *
 
     if (quitLit) {
         NSBezierPath *hp = [NSBezierPath bezierPathWithRoundedRect:quit
-                                                           xRadius:6 yRadius:6];
+                                                           xRadius:kRowRadius
+                                                           yRadius:kRowRadius];
         [[NSColor selectedContentBackgroundColor] setFill];
         [hp fill];
     }
@@ -916,7 +928,8 @@ NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *
     a[NSForegroundColorAttributeName] = quitLit
         ? [NSColor alternateSelectedControlTextColor] : [NSColor labelColor];
     NSSize qs = [@"quit" sizeWithAttributes:a];
-    [@"quit" drawAtPoint:NSMakePoint(NSMinX(quit) + 9, NSMidY(quit) - qs.height / 2)
+    [@"quit" drawAtPoint:NSMakePoint(NSMinX(quit) + kTextInset,
+                                     NSMidY(quit) - qs.height / 2)
           withAttributes:a];
 
     if (self.status.length) {

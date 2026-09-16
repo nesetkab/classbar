@@ -141,9 +141,71 @@ int main(int argc, char **argv) {
             return ok ? 0 : 1;
         }
 
+        if (argc > 2 && strcmp(argv[1], "--menu") == 0) {
+            NSColor *purple = [NSColor colorWithSRGBRed:0.722 green:0.655
+                                                   blue:0.945 alpha:1.0];
+            NSColor *blue = [NSColor colorWithSRGBRed:0.651 green:0.839
+                                                 blue:0.933 alpha:1.0];
+            CGFloat w = 372, pad = 0;
+            NSMutableArray *rows = [NSMutableArray array];
+            [rows addObject:CardItem(@"Cornerstone 1", @"GE 1501", @"4:35p · 56m left",
+                                     @"Snell 268", @"", @"", @"", purple, w).view];
+            [rows addObject:CardItem(@"done for the day! :3", @"", @"", @"", @"", @"",
+                                     @"", blue, w).view];
+            NSArray *items = @[ @[@"club info meeting", @"8:00p", @0],
+                                @[@"HW Chapter 3", @"2d", @0],
+                                @[@"do something at", @"tmr 8:00p", @1] ];
+            CGFloat dueWidth = 0;
+            for (NSArray *r in items) {
+                CGFloat dw = [r[1] sizeWithAttributes:
+                    @{ NSFontAttributeName: DueFont(NO) }].width;
+                if (dw > dueWidth) dueWidth = ceil(dw);
+            }
+            for (NSArray *r in items) {
+                AssignmentView *v = [[AssignmentView alloc]
+                    initWithFrame:NSMakeRect(0, 0, w, 22)];
+                v.name = r[0]; v.due = r[1]; v.done = [r[2] boolValue];
+                v.dueWidth = dueWidth;
+                [rows addObject:v];
+            }
+            NSMenuItem *compose = ComposeRowItem(@"", [NSDate date],
+                                                 nil, NULL, nil, NULL, w);
+            [rows addObject:compose.view];
+            FooterView *f = [[FooterView alloc] initWithFrame:NSMakeRect(0, 0, w, 26)];
+            f.status = @"3h ago";
+            [rows addObject:f];
+
+            CGFloat total = pad * 2;
+            for (NSView *v in rows) total += NSHeight(v.frame) + 2;
+            NSImage *sheet = [[NSImage alloc] initWithSize:NSMakeSize(w, total)];
+            [sheet lockFocus];
+            [[NSColor colorWithWhite:0.13 alpha:1.0] setFill];
+            NSRectFill(NSMakeRect(0, 0, w, total));
+            CGFloat y = total - pad;
+            for (NSView *v in rows) {
+                v.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
+                [v layoutSubtreeIfNeeded];
+                y -= NSHeight(v.frame) + 2;
+                [NSGraphicsContext saveGraphicsState];
+                NSAffineTransform *t = [NSAffineTransform transform];
+                [t translateXBy:0 yBy:y];
+                [t concat];
+                [v displayRectIgnoringOpacity:v.bounds
+                                    inContext:[NSGraphicsContext currentContext]];
+                [NSGraphicsContext restoreGraphicsState];
+            }
+            [sheet unlockFocus];
+            NSBitmapImageRep *out = [[NSBitmapImageRep alloc]
+                initWithData:[sheet TIFFRepresentation]];
+            BOOL ok = [[out representationUsingType:NSBitmapImageFileTypePNG properties:@{}]
+                writeToFile:@(argv[2]) atomically:YES];
+            printf("%s %s\n", ok ? "wrote" : "failed", argv[2]);
+            return ok ? 0 : 1;
+        }
+
         if (argc > 2 && strcmp(argv[1], "--compose") == 0) {
             NSArray *drafts = @[@"", @"finish lab report tomorrow 5pm", @"essay next fri"];
-            CGFloat w = 360, h = 26, pad = 12;
+            CGFloat w = 360, h = 22, pad = 12;
             NSImage *sheet = [[NSImage alloc]
                 initWithSize:NSMakeSize(w + pad * 2, (h + pad) * drafts.count + pad)];
             [sheet lockFocus];
