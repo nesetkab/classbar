@@ -142,22 +142,20 @@ int main(int argc, char **argv) {
         }
 
         if (argc > 2 && strcmp(argv[1], "--menu") == 0) {
-            NSColor *blue = [NSColor colorWithSRGBRed:0.651 green:0.839
-                                                 blue:0.933 alpha:1.0];
             CGFloat w = 372, pad = 0;
             NSMutableArray *rows = [NSMutableArray array];
             [rows addObject:CardItem(@"Cornerstone 1", @"GE 1501", @"4:35p · 56m left",
                                      @"Snell 268", @"", @"", @"",
-                                     CourseColor(@"GE 1501"), 0.62, w).view];
+                                     CoursePalette()[4], 0.62, w).view];
             [rows addObject:CardItem(@"next: calculus 2", @"MATH 1342", @"1:35p · in 2h",
                                      @"kariotis 110", @"", @"", @"",
-                                     PaleColor(CourseColor(@"MATH 1342")), 0, w).view];
+                                     PaleColor(CoursePalette()[2]), 0, w).view];
             [rows addObject:CardItem(@"done for the day! :3", @"", @"", @"", @"", @"",
-                                     @"", blue, 0, w).view];
-            NSArray *items = @[ @[@"club info meeting", @"8:00p", @0, @"GE 1501"],
-                                @[@"HW Chapter 3", @"2d", @0, @"CHEM 1151"],
-                                @[@"reading guide 4.5", @"5d", @0, @"MATH 1342"],
-                                @[@"do something at", @"tmr 8:00p", @1, @""] ];
+                                     @"", NoticeColor(), 0, w).view];
+            NSArray *items = @[ @[@"club info meeting", @"8:00p", @0, @"GE 1501", @4],
+                                @[@"HW Chapter 3", @"2d", @0, @"CHEM 1151", @0],
+                                @[@"reading guide 4.5", @"5d", @0, @"MATH 1342", @2],
+                                @[@"do something at", @"tmr 8:00p", @1, @"", @0] ];
             CGFloat dueWidth = 0;
             for (NSArray *r in items) {
                 CGFloat dw = [r[1] sizeWithAttributes:
@@ -168,7 +166,7 @@ int main(int argc, char **argv) {
                 AssignmentView *v = [[AssignmentView alloc]
                     initWithFrame:NSMakeRect(0, 0, w, 22)];
                 v.name = r[0]; v.due = r[1]; v.done = [r[2] boolValue];
-                v.rail = CourseColor(r[3]);
+                v.rail = [r[3] length] ? CoursePalette()[[r[4] intValue]] : nil;
                 v.dueWidth = dueWidth;
                 [rows addObject:v];
             }
@@ -686,8 +684,15 @@ int main(int argc, char **argv) {
             { "canvas course ids find the class", ({
                   NSColor *one = RailForCourse(gSched, @"CHEM1151.11337.202710");
                   NSColor *two = RailForCourse(gSched, @"CRWT1170.22544.202710");
-                  one == CourseColor(@"CHEM 1151") &&
-                      two == CourseColor(@"CRWT 1170") && one != two; }) },
+                  one != nil && two != nil && one != two &&
+                      [CoursePalette() containsObject:one] &&
+                      [CoursePalette() containsObject:two]; }) },
+            { "every class gets its own colour", ({
+                  NSMutableSet *used = [NSMutableSet set];
+                  for (NSString *code in @[@"CHEM 1151", @"CHEM 1153", @"MATH 1342",
+                                           @"CRWT 1170", @"GE 1501"])
+                      [used addObject:RailForCourse(gSched, SquashKey(code))];
+                  used.count == 5 && ![used containsObject:NoticeColor()]; }) },
             { "an unknown course still gets one",
                   RailForCourse(gSched, @"GE1000.10290.202710") != nil },
             { "a task has no rail",  RailForCourse(gSched, @"") == nil },

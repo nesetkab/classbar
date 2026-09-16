@@ -11,7 +11,8 @@ const CGFloat kDoneCircleWidth = 26.0;
 static const CGFloat kRowInset = 5.0;
 static const CGFloat kTextInset = 9.0;
 static const CGFloat kRowRadius = 6.0;
-static const CGFloat kRailWidth = 3.0;
+static const CGFloat kDotColumn = 14.0;
+static const CGFloat kDotSize = 7.0;
 
 NSString *SquashKey(NSString *s) {
     if (![s isKindOfClass:[NSString class]]) return @"";
@@ -25,15 +26,25 @@ NSString *SquashKey(NSString *s) {
     return out;
 }
 
-NSColor *CourseColor(NSString *key) {
+NSArray *CoursePalette(void) {
     static NSArray *palette;
     if (!palette)
         palette = @[[NSColor colorWithSRGBRed:0.722 green:0.655 blue:0.945 alpha:1.0],
                     [NSColor colorWithSRGBRed:0.635 green:0.894 blue:0.796 alpha:1.0],
                     [NSColor colorWithSRGBRed:0.980 green:0.776 blue:0.643 alpha:1.0],
                     [NSColor colorWithSRGBRed:0.965 green:0.694 blue:0.741 alpha:1.0],
-                    [NSColor colorWithSRGBRed:0.651 green:0.839 blue:0.933 alpha:1.0],
-                    [NSColor colorWithSRGBRed:0.937 green:0.878 blue:0.671 alpha:1.0]];
+                    [NSColor colorWithSRGBRed:0.937 green:0.878 blue:0.671 alpha:1.0],
+                    [NSColor colorWithSRGBRed:0.788 green:0.867 blue:0.678 alpha:1.0]];
+    return palette;
+}
+
+NSColor *NoticeColor(void) {
+    return [NSColor colorWithSRGBRed:0.651 green:0.839 blue:0.933 alpha:1.0];
+}
+
+NSColor *CourseColor(NSString *key) {
+    static NSArray *palette;
+    if (!palette) palette = CoursePalette();
     NSString *squashed = SquashKey(key);
     if (!squashed.length) return nil;
     unsigned long hash = 5381;
@@ -73,8 +84,10 @@ static BOOL CardHasDetail(NSString *when, NSString *room, NSString *zoom) {
     return when.length > 0 || room.length > 0 || zoom.length > 0;
 }
 
-static CGFloat CardHeight(NSString *when, NSString *room, NSString *zoom) {
-    return CardHasDetail(when, room, zoom) ? 52.0 : 34.0;
+static CGFloat CardHeight(NSString *when, NSString *room, NSString *zoom,
+                          CGFloat progress) {
+    if (!CardHasDetail(when, room, zoom)) return 34.0;
+    return progress > 0 ? 62.0 : 52.0;
 }
 
 static NSPanel *gTipPanel;
@@ -611,16 +624,16 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
     [p fill];
 
     if (self.progress > 0) {
-        [NSGraphicsContext saveGraphicsState];
-        [p addClip];
-        NSRect track = NSMakeRect(NSMinX(box), NSMinY(box), NSWidth(box), 3.5);
-        [[NSColor colorWithWhite:0.0 alpha:0.12] setFill];
-        NSRectFill(track);
+        NSRect track = NSMakeRect(NSMinX(box) + kTextInset, NSMinY(box) + 9,
+                                  NSWidth(box) - kTextInset * 2, 5);
+        [[NSColor colorWithWhite:0.0 alpha:0.16] setFill];
+        [[NSBezierPath bezierPathWithRoundedRect:track
+                                         xRadius:2.5 yRadius:2.5] fill];
         NSRect run = track;
-        run.size.width = NSWidth(track) * MIN(1.0, self.progress);
-        [[NSColor colorWithWhite:0.0 alpha:0.38] setFill];
-        NSRectFill(run);
-        [NSGraphicsContext restoreGraphicsState];
+        run.size.width = MAX(5, NSWidth(track) * MIN(1.0, self.progress));
+        [[NSColor colorWithWhite:0.0 alpha:0.62] setFill];
+        [[NSBezierPath bezierPathWithRoundedRect:run
+                                         xRadius:2.5 yRadius:2.5] fill];
     }
 
     NSDictionary *tAttr = @{
@@ -633,7 +646,7 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
     };
 
     CGFloat topY = NSMaxY(box) - 22;
-    CGFloat botY = NSMinY(box) + 7;
+    CGFloat botY = NSMinY(box) + (self.progress > 0 ? 19 : 7);
 
     NSMutableAttributedString *head = [[NSMutableAttributedString alloc]
         initWithString:self.title attributes:tAttr];
@@ -771,15 +784,13 @@ NSFont *NameFont(void) {
     }]];
 }
 
-- (void)drawRail {
+- (void)drawDot {
     if (!self.rail) return;
     NSRect r = [self rowRect];
-    NSRect bar = NSMakeRect(NSMinX(r), NSMinY(r) + 3, kRailWidth, NSHeight(r) - 6);
-    NSBezierPath *p = [NSBezierPath bezierPathWithRoundedRect:bar
-                                                      xRadius:kRailWidth / 2
-                                                      yRadius:kRailWidth / 2];
-    [[self.rail colorWithAlphaComponent:self.done ? 0.3 : 0.9] setFill];
-    [p fill];
+    NSRect dot = NSMakeRect(NSMinX(r) + kTextInset, NSMidY(r) - kDotSize / 2,
+                            kDotSize, kDotSize);
+    [[self.rail colorWithAlphaComponent:self.done ? 0.35 : 1.0] setFill];
+    [[NSBezierPath bezierPathWithOvalInRect:dot] fill];
 }
 
 - (void)drawRect:(NSRect)dirty __unused {
@@ -790,7 +801,7 @@ NSFont *NameFont(void) {
         [[NSColor selectedContentBackgroundColor] setFill];
         [p fill];
     }
-    if (!self.hovered) [self drawRail];
+    [self drawDot];
 
     NSColor *dueColor = self.hovered
         ? [[NSColor alternateSelectedControlTextColor] colorWithAlphaComponent:0.8]
@@ -827,7 +838,7 @@ NSFont *NameFont(void) {
 
     NSSize ds = due.size;
     NSSize ns = [self.name sizeWithAttributes:nameAttr];
-    CGFloat nameX = NSMinX([self rowRect]) + kTextInset;
+    CGFloat nameX = NSMinX([self rowRect]) + kTextInset + kDotColumn;
     CGFloat dueRight = NSMinX([self circleRect]) - 8;
 
     [due drawAtPoint:NSMakePoint(dueRight - ceil(ds.width),
@@ -863,7 +874,7 @@ NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *
                             NSString *link, NSString *zoom, NSString *tip,
                             NSColor *bg, CGFloat progress, CGFloat width) {
     CardView *v = [[CardView alloc]
-        initWithFrame:NSMakeRect(0, 0, width, CardHeight(when, room, zoom))];
+        initWithFrame:NSMakeRect(0, 0, width, CardHeight(when, room, zoom, progress))];
     v.autoresizingMask = NSViewWidthSizable;
     v.title = title; v.code = code; v.when = when; v.room = room;
     v.link = link; v.zoom = zoom; v.tip = tip; v.bg = bg; v.progress = progress;

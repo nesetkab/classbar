@@ -93,5 +93,7 @@ NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *
                      NSString *link, NSString *zoom, NSString *tip,
                      NSColor *bg, CGFloat progress, CGFloat width);
 NSString *SquashKey(NSString *s);
+NSArray *CoursePalette(void);
+NSColor *NoticeColor(void);
 NSColor *CourseColor(NSString *key);
 NSColor *PaleColor(NSColor *c);

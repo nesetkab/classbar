@@ -29,13 +29,18 @@
 NSColor *RailForCourse(Schedule *s, NSString *course) {
     NSString *want = SquashKey(course);
     if (!want.length) return nil;
+    NSArray *palette = CoursePalette();
+    NSMutableArray *seen = [NSMutableArray array];
     for (NSArray *day in s.byDay)
         for (NSDictionary *c in day) {
             NSString *code = SquashKey(c[@"code"]);
             NSString *name = SquashKey(c[@"name"]);
+            NSString *key = code.length ? code : name;
+            if (!key.length) continue;
+            if (![seen containsObject:key]) [seen addObject:key];
             if ((code.length && [want hasPrefix:code]) ||
                 (name.length && [want containsString:name]))
-                return CourseColor(code.length ? code : name);
+                return palette[[seen indexOfObject:key] % palette.count];
         }
     return CourseColor([course componentsSeparatedByString:@"."].firstObject);
 }
@@ -141,12 +146,12 @@ static const NSTimeInterval kStaleSeconds = 300;
     CGFloat dueWidth = ceil(dueMax);
     CGFloat cardWidth = MAX(292.0,
                             dueWidth + kDueColumnGap + ceil(nameMax) +
-                            kDoneCircleWidth + 26.0);
+                            kDoneCircleWidth + 40.0);
     self.menuWidth = cardWidth;
 
     NSArray *series = cb_series(self.schedule, ymd, mins, day, 2);
     {
-        NSColor *blue = [NSColor colorWithSRGBRed:0.651 green:0.839 blue:0.933 alpha:1.0];
+        NSColor *blue = NoticeColor();
         for (NSUInteger k = 0; k < series.count; k++) {
             NSDictionary *e = series[k];
             BOOL notice = [e[@"notice"] boolValue];
@@ -154,7 +159,8 @@ static const NSTimeInterval kStaleSeconds = 300;
                         ? e[@"title"]
                         : [NSString stringWithFormat:@"next: %@", e[@"title"]];
             NSColor *base = notice ? blue
-                : CourseColor([e[@"code"] length] ? e[@"code"] : e[@"title"]);
+                : RailForCourse(self.schedule,
+                                [e[@"code"] length] ? e[@"code"] : e[@"title"]);
             NSColor *fill = (notice || [e[@"now"] boolValue]) ? base : PaleColor(base);
             [menu addItem:CardItem(t, e[@"code"], e[@"when"], e[@"room"], e[@"link"],
                                    e[@"zoom"], e[@"tip"], fill,
