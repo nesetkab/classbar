@@ -110,11 +110,24 @@ NSDate *ParseDueFromText(NSString *text, NSDate *now, NSString **cleaned) {
 
     NSInteger shift = -1, weekday = -1, month = -1, monthDay = -1;
     int minutes = -1;
+    BOOL weekLater = NO;
 
     for (NSUInteger i = 0; i < words.count; i++) {
         NSString *word = [[words[i] stringByTrimmingCharactersInSet:
             [NSCharacterSet punctuationCharacterSet]] lowercaseString];
         if (!word.length) continue;
+
+        if ([word isEqualToString:@"next"] && i + 1 < words.count) {
+            NSString *after = [[words[i + 1] stringByTrimmingCharactersInSet:
+                [NSCharacterSet punctuationCharacterSet]] lowercaseString];
+            if ([after isEqualToString:@"week"]) {
+                shift = 7; [eaten addIndex:i]; [eaten addIndex:i + 1];
+                i++; continue;
+            }
+            if (WeekdayWord(after) >= 0) {
+                weekLater = YES; [eaten addIndex:i]; continue;
+            }
+        }
 
         if ([word isEqualToString:@"today"] || [word isEqualToString:@"td"]) {
             shift = 0; [eaten addIndex:i]; continue;
@@ -160,6 +173,7 @@ NSDate *ParseDueFromText(NSString *text, NSDate *now, NSString **cleaned) {
         if (todayIndex < 0) todayIndex = 6;
         NSInteger ahead = weekday - todayIndex;
         if (ahead <= 0) ahead += 7;
+        if (weekLater) ahead += 7;
         NSDateComponents *add = [[NSDateComponents alloc] init];
         add.day = ahead;
         day = [cal dateByAddingComponents:add toDate:day options:0];

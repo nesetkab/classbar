@@ -813,6 +813,10 @@ int main(int argc, char **argv) {
             { "pset td 5p",                     "pset",              9, 16, 17, 0 },
             { "standup 9a",                     "standup",           9, 16, 9, 0 },
             { "review 11:30p",                  "review",            9, 16, 23, 30 },
+            { "essay next fri",                 "essay",             9, 25, 23, 59 },
+            { "essay friday",                   "essay",             9, 18, 23, 59 },
+            { "pset next week",                 "pset",              9, 23, 23, 59 },
+            { "lab next monday 9a",             "lab",               9, 28, 9, 0 },
         };
         for (size_t i = 0; i < sizeof(dueCases2) / sizeof(dueCases2[0]); i++) {
             NSString *clean = nil;
@@ -833,6 +837,13 @@ int main(int argc, char **argv) {
                      [untouched isEqualToString:@"write the essay"];
         if (!plain) fails++;
         printf("  %-4s plain text keeps its name\n", plain ? "ok" : "FAIL");
+
+        NSString *notADay = nil;
+        BOOL keptNext = ParseDueFromText(@"next steps for the paper",
+                                         base, &notADay) == nil &&
+                        [notADay isEqualToString:@"next steps for the paper"];
+        if (!keptNext) fails++;
+        printf("  %-4s next only counts before a day\n", keptNext ? "ok" : "FAIL");
 
         printf("\ntyping a time\n");
         struct { const char *in; int want; } timeCases[] = {
