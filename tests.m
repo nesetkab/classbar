@@ -141,6 +141,41 @@ int main(int argc, char **argv) {
             return ok ? 0 : 1;
         }
 
+        if (argc > 2 && strcmp(argv[1], "--compose") == 0) {
+            NSArray *drafts = @[@"", @"finish lab report tomorrow 5pm", @"essay next fri"];
+            CGFloat w = 360, h = 26, pad = 12;
+            NSImage *sheet = [[NSImage alloc]
+                initWithSize:NSMakeSize(w + pad * 2, (h + pad) * drafts.count + pad)];
+            [sheet lockFocus];
+            [[NSColor colorWithWhite:0.13 alpha:1.0] setFill];
+            NSRectFill(NSMakeRect(0, 0, sheet.size.width, sheet.size.height));
+            for (NSUInteger i = 0; i < drafts.count; i++) {
+                NSMenuItem *item = ComposeRowItem(drafts[i], [NSDate date],
+                                                  nil, NULL, nil, NULL, w);
+                ComposeRowView *v = (ComposeRowView *)item.view;
+                v.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
+                v.caretOn = YES;
+                [v layoutSubtreeIfNeeded];
+                NSRect slot = NSMakeRect(pad,
+                                         sheet.size.height - pad - (h + pad) * (i + 1),
+                                         w, h);
+                [NSGraphicsContext saveGraphicsState];
+                NSAffineTransform *shift = [NSAffineTransform transform];
+                [shift translateXBy:NSMinX(slot) yBy:NSMinY(slot)];
+                [shift concat];
+                [v displayRectIgnoringOpacity:v.bounds
+                                    inContext:[NSGraphicsContext currentContext]];
+                [NSGraphicsContext restoreGraphicsState];
+            }
+            [sheet unlockFocus];
+            NSBitmapImageRep *out = [[NSBitmapImageRep alloc]
+                initWithData:[sheet TIFFRepresentation]];
+            BOOL ok = [[out representationUsingType:NSBitmapImageFileTypePNG properties:@{}]
+                writeToFile:@(argv[2]) atomically:YES];
+            printf("%s %s (caret shown)\n", ok ? "wrote" : "failed", argv[2]);
+            return ok ? 0 : 1;
+        }
+
         if (argc > 2 && strcmp(argv[1], "--footer") == 0) {
             NSArray *states = @[@"idle", @"quit", @"refresh", @"plus", @"gear"];
             CGFloat w = 300, h = 26, pad = 12;
@@ -705,6 +740,14 @@ int main(int argc, char **argv) {
                                         chosen.hour == 17 && chosen.minute == 30 },
             { "the day reads as a chip", row.dayChip.stringValue.length > 0 &&
                   [row.dayChip.stringValue containsString:@"/"] },
+            { "the caret follows the text", ({
+                  NSMenuItem *it5 = ComposeRowItem(@"", rowDue, nil, NULL, nil, NULL, 372);
+                  ComposeRowView *r5 = (ComposeRowView *)it5.view;
+                  [r5 layoutSubtreeIfNeeded];
+                  CGFloat empty = NSMinX([r5 caretRect]);
+                  r5.nameField.stringValue = @"finish the lab report";
+                  CGFloat typed = NSMinX([r5 caretRect]);
+                  typed > empty && NSHeight([r5 caretRect]) > 8; }) },
             { "day and time recombine", ({
                   NSCalendar *c2 = [NSCalendar currentCalendar];
                   NSDateComponents *dp = [[NSDateComponents alloc] init];
