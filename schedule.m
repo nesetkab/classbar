@@ -190,7 +190,8 @@ NSArray *cb_series(Schedule *s, int ymd, int mins, int day, int count) {
                 @"room": [hit[@"room"] length] ? hit[@"room"] : @"",
                 @"link": [hit[@"canvas"] length] ? hit[@"canvas"] : s.canvasHome,
                 @"zoom": hit[@"zoom"] ?: @"",
-                @"now": @(now)
+                @"now": @(now),
+                @"progress": @(now && en > st ? (double)(mins - st) / (en - st) : 0.0)
             }];
             after = st;
             continue;

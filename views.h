@@ -50,6 +50,7 @@ extern const CGFloat kDoneCircleWidth;
 @end
 
 @interface AssignmentView : HoverTipView
+@property (strong) NSColor *rail;
 @property (copy) NSString *due;
 @property (copy) NSString *name;
 @property (copy) NSString *link;
@@ -82,7 +83,7 @@ NSFont *NameFont(void);
 
 NSMenuItem *AssignmentItem(NSDictionary *item, NSString *due, NSString *name,
                            NSString *link, NSString *tip, BOOL late, BOOL done,
-                           CGFloat dueWidth, CGFloat width,
+                           NSColor *rail, CGFloat dueWidth, CGFloat width,
                            id target, SEL toggleAction);
 NSMenuItem *ComposeRowItem(NSString *name, NSDate *due,
                            id target, SEL action, id chipTarget,
@@ -90,4 +91,6 @@ NSMenuItem *ComposeRowItem(NSString *name, NSDate *due,
 NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width);
 NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *room,
                      NSString *link, NSString *zoom, NSString *tip,
-                     NSColor *bg, CGFloat width);
+                     NSColor *bg, CGFloat progress, CGFloat width);
+NSColor *CourseColor(NSString *key);
+NSColor *PaleColor(NSColor *c);

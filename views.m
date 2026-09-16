@@ -11,6 +11,28 @@ const CGFloat kDoneCircleWidth = 26.0;
 static const CGFloat kRowInset = 5.0;
 static const CGFloat kTextInset = 9.0;
 static const CGFloat kRowRadius = 6.0;
+static const CGFloat kRailWidth = 3.0;
+
+NSColor *CourseColor(NSString *key) {
+    static NSArray *palette;
+    if (!palette)
+        palette = @[[NSColor colorWithSRGBRed:0.722 green:0.655 blue:0.945 alpha:1.0],
+                    [NSColor colorWithSRGBRed:0.635 green:0.894 blue:0.796 alpha:1.0],
+                    [NSColor colorWithSRGBRed:0.980 green:0.776 blue:0.643 alpha:1.0],
+                    [NSColor colorWithSRGBRed:0.965 green:0.694 blue:0.741 alpha:1.0],
+                    [NSColor colorWithSRGBRed:0.651 green:0.839 blue:0.933 alpha:1.0],
+                    [NSColor colorWithSRGBRed:0.937 green:0.878 blue:0.671 alpha:1.0]];
+    if (!key.length) return nil;
+    unsigned long hash = 5381;
+    NSString *low = key.lowercaseString;
+    for (NSUInteger i = 0; i < low.length; i++)
+        hash = hash * 33 + [low characterAtIndex:i];
+    return palette[hash % palette.count];
+}
+
+NSColor *PaleColor(NSColor *c) {
+    return [c blendedColorWithFraction:0.45 ofColor:[NSColor whiteColor]] ?: c;
+}
 
 static NSImage *Symbol(NSString *name, CGFloat pt, NSColor *color) {
     NSImage *img = [NSImage imageWithSystemSymbolName:name accessibilityDescription:nil];
@@ -446,6 +468,7 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
 @property (copy) NSString *link;
 @property (copy) NSString *zoom;
 @property (strong) NSColor *bg;
+@property (assign) CGFloat progress;
 @property (assign) BOOL overPill;
 @end
 
@@ -574,6 +597,19 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
     }
     [fill setFill];
     [p fill];
+
+    if (self.progress > 0) {
+        [NSGraphicsContext saveGraphicsState];
+        [p addClip];
+        NSRect track = NSMakeRect(NSMinX(box), NSMinY(box), NSWidth(box), 3.5);
+        [[NSColor colorWithWhite:0.0 alpha:0.12] setFill];
+        NSRectFill(track);
+        NSRect run = track;
+        run.size.width = NSWidth(track) * MIN(1.0, self.progress);
+        [[NSColor colorWithWhite:0.0 alpha:0.38] setFill];
+        NSRectFill(run);
+        [NSGraphicsContext restoreGraphicsState];
+    }
 
     NSDictionary *tAttr = @{
         NSFontAttributeName: [NSFont systemFontOfSize:13 weight:NSFontWeightSemibold],
@@ -723,6 +759,17 @@ NSFont *NameFont(void) {
     }]];
 }
 
+- (void)drawRail {
+    if (!self.rail) return;
+    NSRect r = [self rowRect];
+    NSRect bar = NSMakeRect(NSMinX(r), NSMinY(r) + 3, kRailWidth, NSHeight(r) - 6);
+    NSBezierPath *p = [NSBezierPath bezierPathWithRoundedRect:bar
+                                                      xRadius:kRailWidth / 2
+                                                      yRadius:kRailWidth / 2];
+    [[self.rail colorWithAlphaComponent:self.done ? 0.3 : 0.9] setFill];
+    [p fill];
+}
+
 - (void)drawRect:(NSRect)dirty __unused {
     if (self.hovered) {
         NSBezierPath *p = [NSBezierPath bezierPathWithRoundedRect:[self rowRect]
@@ -731,6 +778,7 @@ NSFont *NameFont(void) {
         [[NSColor selectedContentBackgroundColor] setFill];
         [p fill];
     }
+    if (!self.hovered) [self drawRail];
 
     NSColor *dueColor = self.hovered
         ? [[NSColor alternateSelectedControlTextColor] colorWithAlphaComponent:0.8]
@@ -785,14 +833,14 @@ NSFont *NameFont(void) {
 
 NSMenuItem *AssignmentItem(NSDictionary *item, NSString *due, NSString *name,
                            NSString *link, NSString *tip, BOOL late, BOOL done,
-                           CGFloat dueWidth, CGFloat width,
+                           NSColor *rail, CGFloat dueWidth, CGFloat width,
                            id target, SEL toggleAction) {
     AssignmentView *v = [[AssignmentView alloc]
         initWithFrame:NSMakeRect(0, 0, width, 22)];
     v.autoresizingMask = NSViewWidthSizable;
     v.due = due; v.name = name; v.link = link; v.tip = tip; v.late = late;
     v.dueWidth = dueWidth;
-    v.item = item; v.done = done;
+    v.item = item; v.done = done; v.rail = rail;
     v.target = target; v.toggleAction = toggleAction;
     NSMenuItem *i = [[NSMenuItem alloc] init];
     i.view = v;
@@ -801,12 +849,12 @@ NSMenuItem *AssignmentItem(NSDictionary *item, NSString *due, NSString *name,
 
 NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *room,
                             NSString *link, NSString *zoom, NSString *tip,
-                            NSColor *bg, CGFloat width) {
+                            NSColor *bg, CGFloat progress, CGFloat width) {
     CardView *v = [[CardView alloc]
         initWithFrame:NSMakeRect(0, 0, width, CardHeight(when, room, zoom))];
     v.autoresizingMask = NSViewWidthSizable;
     v.title = title; v.code = code; v.when = when; v.room = room;
-    v.link = link; v.zoom = zoom; v.tip = tip; v.bg = bg;
+    v.link = link; v.zoom = zoom; v.tip = tip; v.bg = bg; v.progress = progress;
     NSMenuItem *i = [[NSMenuItem alloc] init];
     i.view = v;
     return i;

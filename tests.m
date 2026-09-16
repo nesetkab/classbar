@@ -142,19 +142,22 @@ int main(int argc, char **argv) {
         }
 
         if (argc > 2 && strcmp(argv[1], "--menu") == 0) {
-            NSColor *purple = [NSColor colorWithSRGBRed:0.722 green:0.655
-                                                   blue:0.945 alpha:1.0];
             NSColor *blue = [NSColor colorWithSRGBRed:0.651 green:0.839
                                                  blue:0.933 alpha:1.0];
             CGFloat w = 372, pad = 0;
             NSMutableArray *rows = [NSMutableArray array];
             [rows addObject:CardItem(@"Cornerstone 1", @"GE 1501", @"4:35p · 56m left",
-                                     @"Snell 268", @"", @"", @"", purple, w).view];
+                                     @"Snell 268", @"", @"", @"",
+                                     CourseColor(@"GE 1501"), 0.62, w).view];
+            [rows addObject:CardItem(@"next: calculus 2", @"MATH 1342", @"1:35p · in 2h",
+                                     @"kariotis 110", @"", @"", @"",
+                                     PaleColor(CourseColor(@"MATH 1342")), 0, w).view];
             [rows addObject:CardItem(@"done for the day! :3", @"", @"", @"", @"", @"",
-                                     @"", blue, w).view];
-            NSArray *items = @[ @[@"club info meeting", @"8:00p", @0],
-                                @[@"HW Chapter 3", @"2d", @0],
-                                @[@"do something at", @"tmr 8:00p", @1] ];
+                                     @"", blue, 0, w).view];
+            NSArray *items = @[ @[@"club info meeting", @"8:00p", @0, @"GE 1501"],
+                                @[@"HW Chapter 3", @"2d", @0, @"CHEM 1151"],
+                                @[@"reading guide 4.5", @"5d", @0, @"MATH 1342"],
+                                @[@"do something at", @"tmr 8:00p", @1, @""] ];
             CGFloat dueWidth = 0;
             for (NSArray *r in items) {
                 CGFloat dw = [r[1] sizeWithAttributes:
@@ -165,6 +168,7 @@ int main(int argc, char **argv) {
                 AssignmentView *v = [[AssignmentView alloc]
                     initWithFrame:NSMakeRect(0, 0, w, 22)];
                 v.name = r[0]; v.due = r[1]; v.done = [r[2] boolValue];
+                v.rail = CourseColor(r[3]);
                 v.dueWidth = dueWidth;
                 [rows addObject:v];
             }
@@ -660,6 +664,35 @@ int main(int argc, char **argv) {
         for (size_t i = 0; i < sizeof(capChecks) / sizeof(capChecks[0]); i++) {
             if (!capChecks[i].ok) fails++;
             printf("  %-4s %s\n", capChecks[i].ok ? "ok" : "FAIL", capChecks[i].label);
+        }
+
+        printf("\ncourse colour and progress\n");
+        struct { const char *label; BOOL ok; } liveChecks[] = {
+            { "a class in progress reports it", ({
+                  NSArray *r = cb_series(gSched, 20260914, 9 * 60 + 48, 0, 1);
+                  double p = [r[0][@"progress"] doubleValue];
+                  p > 0.45 && p < 0.55; }) },
+            { "a class not started reports 0", ({
+                  NSArray *r = cb_series(gSched, 20260914, 8 * 60, 0, 1);
+                  [r[0][@"progress"] doubleValue] == 0.0; }) },
+            { "a notice reports no progress", ({
+                  NSArray *r = cb_series(gSched, 20260907, 600, 0, 1);
+                  [r[0][@"progress"] doubleValue] == 0.0; }) },
+            { "a course keeps its colour",
+                  CourseColor(@"CHEM 1151") == CourseColor(@"chem 1151") },
+            { "courses differ",
+                  CourseColor(@"CHEM 1151") != CourseColor(@"MATH 1342") },
+            { "no course has no colour",  CourseColor(@"") == nil },
+            { "pale is lighter", ({
+                  NSColor *base = [CourseColor(@"GE 1501")
+                      colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+                  NSColor *pale = [PaleColor(base)
+                      colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
+                  pale.brightnessComponent > base.brightnessComponent; }) },
+        };
+        for (size_t i = 0; i < sizeof(liveChecks) / sizeof(liveChecks[0]); i++) {
+            if (!liveChecks[i].ok) fails++;
+            printf("  %-4s %s\n", liveChecks[i].ok ? "ok" : "FAIL", liveChecks[i].label);
         }
 
         printf("\nsettings round trip\n");

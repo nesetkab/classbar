@@ -26,6 +26,20 @@
 @property (copy)   NSString *link;
 @end
 
+static NSColor *RailForCourse(Schedule *s, NSString *course) {
+    if (![course isKindOfClass:[NSString class]] || !course.length) return nil;
+    NSString *low = course.lowercaseString;
+    for (NSArray *day in s.byDay)
+        for (NSDictionary *c in day) {
+            NSString *code = [c[@"code"] length] ? [c[@"code"] lowercaseString] : nil;
+            NSString *name = [c[@"name"] length] ? [c[@"name"] lowercaseString] : nil;
+            if ((code && ([low isEqualToString:code] || [low containsString:code])) ||
+                (name && ([low isEqualToString:name] || [low containsString:name])))
+                return CourseColor(code ?: name);
+        }
+    return nil;
+}
+
 static const NSTimeInterval kRefreshFloorSeconds = 10;
 static const NSTimeInterval kStaleSeconds = 300;
 
@@ -132,17 +146,19 @@ static const NSTimeInterval kStaleSeconds = 300;
 
     NSArray *series = cb_series(self.schedule, ymd, mins, day, 2);
     {
-        NSColor *purple = [NSColor colorWithSRGBRed:0.722 green:0.655 blue:0.945 alpha:1.0];
-        NSColor *blue   = [NSColor colorWithSRGBRed:0.651 green:0.839 blue:0.933 alpha:1.0];
+        NSColor *blue = [NSColor colorWithSRGBRed:0.651 green:0.839 blue:0.933 alpha:1.0];
         for (NSUInteger k = 0; k < series.count; k++) {
             NSDictionary *e = series[k];
-            NSString *t = (k == 0 || [e[@"notice"] boolValue])
+            BOOL notice = [e[@"notice"] boolValue];
+            NSString *t = (k == 0 || notice)
                         ? e[@"title"]
                         : [NSString stringWithFormat:@"next: %@", e[@"title"]];
+            NSColor *base = notice ? blue
+                : CourseColor([e[@"code"] length] ? e[@"code"] : e[@"title"]);
+            NSColor *fill = (notice || [e[@"now"] boolValue]) ? base : PaleColor(base);
             [menu addItem:CardItem(t, e[@"code"], e[@"when"], e[@"room"], e[@"link"],
-                                   e[@"zoom"], e[@"tip"],
-                                   (k == 0 && ![e[@"done"] boolValue]) ? purple : blue,
-                                   cardWidth)];
+                                   e[@"zoom"], e[@"tip"], fill,
+                                   [e[@"progress"] doubleValue], cardWidth)];
         }
     }
 
@@ -170,6 +186,7 @@ static const NSTimeInterval kStaleSeconds = 300;
             [menu addItem:AssignmentItem(a, dl, Clip(nm, 46),
                                          [ur isKindOfClass:[NSString class]] ? ur : @"",
                                          tip, late, doneMap[DoneKey(a)] != nil,
+                                         RailForCourse(self.schedule, cs),
                                          dueWidth, cardWidth,
                                          self, @selector(toggleDone:))];
         }
