@@ -76,6 +76,7 @@ static void T2(const char *label, int ymd, int mins, int day,
 int main(int argc, char **argv) {
     @autoreleasepool {
         [NSApplication sharedApplication];
+        [NSApp setActivationPolicy:NSApplicationActivationPolicyAccessory];
         gSched = FixtureSchedule();
 
         if (argc > 1 && strcmp(argv[1], "--live") == 0) {
