@@ -700,13 +700,14 @@ NSFont *NameFont(void) {
 }
 
 - (void)drawCircle {
-    if (!self.hovered && !self.done) return;
     NSRect c = [self circleRect];
     NSColor *ink = self.hovered ? [NSColor alternateSelectedControlTextColor]
                                 : [NSColor tertiaryLabelColor];
+    CGFloat ringAlpha = self.overCircle ? 1.0
+                      : ((self.hovered || self.done) ? 0.65 : 0.3);
     NSBezierPath *ring = [NSBezierPath bezierPathWithOvalInRect:NSInsetRect(c, 1, 1)];
     ring.lineWidth = 1.5;
-    [[ink colorWithAlphaComponent:self.overCircle ? 1.0 : 0.65] setStroke];
+    [[ink colorWithAlphaComponent:ringAlpha] setStroke];
     [ring stroke];
     if (!self.done) return;
     [[ink colorWithAlphaComponent:0.9] setFill];
