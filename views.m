@@ -216,16 +216,8 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 }
 
 - (NSDate *)chosenDue {
-    NSCalendar *cal = [NSCalendar currentCalendar];
-    NSDateComponents *day = [cal components:(NSCalendarUnitYear | NSCalendarUnitMonth |
-                                             NSCalendarUnitDay)
-                                   fromDate:self.dayValue ?: [NSDate date]];
-    NSDateComponents *clock = [cal components:(NSCalendarUnitHour | NSCalendarUnitMinute)
-                                     fromDate:self.timePicker.dateValue];
-    day.hour = clock.hour;
-    day.minute = clock.minute;
-    day.second = 0;
-    return [cal dateFromComponents:day] ?: (self.dayValue ?: [NSDate date]);
+    return CombineDayAndTime(self.dayValue ?: [NSDate date],
+                             self.timePicker.dateValue);
 }
 
 - (void)drawRect:(NSRect)dirty __unused {

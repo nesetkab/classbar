@@ -693,6 +693,20 @@ int main(int argc, char **argv) {
                                         chosen.hour == 17 && chosen.minute == 30 },
             { "the day reads as a chip", row.dayChip.stringValue.length > 0 &&
                   [row.dayChip.stringValue containsString:@"/"] },
+            { "day and time recombine", ({
+                  NSCalendar *c2 = [NSCalendar currentCalendar];
+                  NSDateComponents *dp = [[NSDateComponents alloc] init];
+                  dp.year = 2026; dp.month = 10; dp.day = 3;
+                  NSDateComponents *tp = [[NSDateComponents alloc] init];
+                  tp.year = 2001; tp.month = 2; tp.day = 2;
+                  tp.hour = 8; tp.minute = 45;
+                  NSDate *mix = CombineDayAndTime([c2 dateFromComponents:dp],
+                                                  [c2 dateFromComponents:tp]);
+                  NSDateComponents *got2 = [c2 components:(NSCalendarUnitYear |
+                      NSCalendarUnitMonth | NSCalendarUnitDay | NSCalendarUnitHour |
+                      NSCalendarUnitMinute) fromDate:mix];
+                  got2.year == 2026 && got2.month == 10 && got2.day == 3 &&
+                  got2.hour == 8 && got2.minute == 45; }) },
             { "a calendar row exists",  ({
                   NSMenuItem *cal = CalendarRowItem(rowDue, nil, NULL, 372);
                   CalendarRowView *cv = (CalendarRowView *)cal.view;

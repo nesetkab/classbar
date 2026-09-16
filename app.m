@@ -257,13 +257,19 @@ static const NSTimeInterval kStaleSeconds = 300;
 }
 
 - (void)keepDraftFrom:(NSMenu *)menu {
+    ComposeRowView *row = nil;
+    CalendarRowView *picker = nil;
     for (NSMenuItem *item in menu.itemArray) {
-        if (![item.view isKindOfClass:[ComposeRowView class]]) continue;
-        ComposeRowView *row = (ComposeRowView *)item.view;
-        self.draftName = row.nameField.stringValue;
-        self.draftDue = [row chosenDue];
-        return;
+        if ([item.view isKindOfClass:[ComposeRowView class]])
+            row = (ComposeRowView *)item.view;
+        else if ([item.view isKindOfClass:[CalendarRowView class]])
+            picker = (CalendarRowView *)item.view;
     }
+    if (!row) return;
+
+    self.draftName = row.nameField.stringValue;
+    NSDate *due = [row chosenDue];
+    self.draftDue = picker ? CombineDayAndTime(picker.calendar.dateValue, due) : due;
 }
 
 - (void)clearDraft {
@@ -293,17 +299,7 @@ static const NSTimeInterval kStaleSeconds = 300;
     [self rebuildSoon];
 }
 
-- (void)dayPicked:(CalendarRowView *)row {
-    NSCalendar *cal = [NSCalendar currentCalendar];
-    NSDateComponents *day = [cal components:(NSCalendarUnitYear | NSCalendarUnitMonth |
-                                             NSCalendarUnitDay)
-                                   fromDate:row.calendar.dateValue];
-    NSDateComponents *clock = [cal components:(NSCalendarUnitHour |
-                                               NSCalendarUnitMinute)
-                                     fromDate:self.draftDue ?: [NSDate date]];
-    day.hour = clock.hour;
-    day.minute = clock.minute;
-    self.draftDue = [cal dateFromComponents:day] ?: self.draftDue;
+- (void)dayPicked:(CalendarRowView *)row __unused {
     self.pickingDay = NO;
     [self rebuildSoon];
 }

@@ -21,6 +21,7 @@ NSString *DueLabel(NSCalendar *cal, NSDate *due);
 NSString *Clip(NSString *s, NSUInteger n);
 
 NSDate *EndOfDay(NSDate *date);
+NSDate *CombineDayAndTime(NSDate *day, NSDate *time);
 NSURL *FeedURL(NSString *raw);
 
 NSString *TasksPath(void);

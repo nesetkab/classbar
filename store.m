@@ -134,6 +134,20 @@ NSDate *EndOfDay(NSDate *date) {
     return [cal dateFromComponents:c] ?: date;
 }
 
+NSDate *CombineDayAndTime(NSDate *day, NSDate *time) {
+    if (!day) return time;
+    if (!time) return day;
+    NSCalendar *cal = [NSCalendar currentCalendar];
+    NSDateComponents *parts = [cal components:(NSCalendarUnitYear |
+        NSCalendarUnitMonth | NSCalendarUnitDay) fromDate:day];
+    NSDateComponents *clock = [cal components:(NSCalendarUnitHour |
+        NSCalendarUnitMinute) fromDate:time];
+    parts.hour = clock.hour;
+    parts.minute = clock.minute;
+    parts.second = 0;
+    return [cal dateFromComponents:parts] ?: day;
+}
+
 NSURL *FeedURL(NSString *raw) {
     NSString *feed = [raw stringByTrimmingCharactersInSet:
         [NSCharacterSet whitespaceAndNewlineCharacterSet]];
