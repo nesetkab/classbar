@@ -597,6 +597,13 @@ int main(int argc, char **argv) {
                   NSWidth(sw.donePopup.superview.frame) },
             { "test button reports nearby", sw.feedStatus.superview != nil &&
                   sw.feedStatus.superview != sw.statusLabel.superview },
+            { "days column fits four days", ({
+                  NSTableColumn *col = nil;
+                  for (NSTableColumn *c in sw.table.tableColumns)
+                      if ([c.identifier isEqualToString:@"days"]) col = c;
+                  CGFloat need = [DaysToText(@[@0, @2, @3, @6]) sizeWithAttributes:
+                      @{ NSFontAttributeName: [NSFont systemFontOfSize:12] }].width;
+                  col != nil && col.width >= need + 8; }) },
             { "labels are not clipped",    ({
                   BOOL fits = YES;
                   NSMutableArray *q = [@[sw.window.contentView] mutableCopy];

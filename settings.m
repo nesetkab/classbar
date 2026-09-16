@@ -208,11 +208,11 @@ static NSDate *DateFromYMD(int ymd) {
     self.table.usesAlternatingRowBackgroundColors = YES;
     self.table.columnAutoresizingStyle = NSTableViewLastColumnOnlyAutoresizingStyle;
     self.table.rowHeight = 22;
-    for (NSArray *spec in @[ @[@"name", @"Name", @144], @[@"code", @"Code", @80],
-                             @[@"room", @"Room", @128], @[@"days", @"Days", @104],
+    for (NSArray *spec in @[ @[@"name", @"Name", @150], @[@"code", @"Code", @82],
+                             @[@"room", @"Room", @134], @[@"days", @"Days", @134],
                              @[@"start", @"Start", @54], @[@"end", @"End", @54],
-                             @[@"canvas", @"Canvas link", @148],
-                             @[@"zoom", @"Zoom link", @126] ])
+                             @[@"canvas", @"Canvas link", @150],
+                             @[@"zoom", @"Zoom link", @130] ])
         [self.table addTableColumn:[self columnWithId:spec[0] title:spec[1]
                                                 width:[spec[2] doubleValue]]];
 
