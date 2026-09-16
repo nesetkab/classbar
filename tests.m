@@ -760,6 +760,18 @@ int main(int argc, char **argv) {
         }
 
         printf("\ndue labels\n");
+        NSDate *todayNoon = nil;
+        [[NSCalendar currentCalendar] rangeOfUnit:NSCalendarUnitDay
+                                        startDate:&todayNoon interval:NULL
+                                          forDate:[NSDate date]];
+        NSString *todayLabel = DueLabel([NSCalendar currentCalendar],
+            [todayNoon dateByAddingTimeInterval:9 * 3600 + 15 * 60]);
+        BOOL shortToday = ![todayLabel containsString:@"today"] &&
+                          [todayLabel containsString:@":"];
+        if (!shortToday) fails++;
+        printf("  %-4s today is just the clock time   %s\n",
+               shortToday ? "ok" : "FAIL", todayLabel.UTF8String);
+
         NSCalendar *dueCal = [NSCalendar currentCalendar];
         NSDate *midnight = nil;
         [dueCal rangeOfUnit:NSCalendarUnitDay startDate:&midnight

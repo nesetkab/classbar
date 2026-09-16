@@ -108,7 +108,7 @@ NSString *DueLabel(NSCalendar *cal, NSDate *due) {
     NSString *clock = HHMMshort((int)tc.hour * 60 + (int)tc.minute);
 
     if (days < 0)  return @"late";
-    if (days == 0) return [NSString stringWithFormat:@"today %@", clock];
+    if (days == 0) return clock;
     if (days == 1) return [NSString stringWithFormat:@"tmr %@", clock];
     if (days < 7)  return [NSString stringWithFormat:@"%ldd", (long)days];
 

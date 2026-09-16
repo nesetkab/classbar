@@ -5,7 +5,7 @@
 #import "schedule.h"
 #import "store.h"
 
-const CGFloat kDueColumnGap = 12.0;
+const CGFloat kDueColumnGap = 10.0;
 const CGFloat kDoneCircleWidth = 26.0;
 
 static NSImage *Symbol(NSString *name, CGFloat pt, NSColor *color) {
@@ -246,7 +246,7 @@ NSMenuItem *ComposeRowItem(NSString *name, NSDate *due, CGFloat dueWidth,
     ComposeRowView *v = [[ComposeRowView alloc]
         initWithFrame:NSMakeRect(0, 0, width, 24)];
     v.autoresizingMask = NSViewWidthSizable;
-    v.nameLeading.constant = 14 + dueWidth + kDueColumnGap;
+    (void)dueWidth;
     v.nameField.stringValue = name ?: @"";
     v.dayPicker.dateValue = due;
     v.timePicker.dateValue = due;
@@ -580,12 +580,13 @@ NSFont *NameFont(void) {
 
     NSSize ds = due.size;
     NSSize ns = [self.name sizeWithAttributes:nameAttr];
-    CGFloat x = NSMinX([self rowRect]) + 9;
-    [due drawAtPoint:NSMakePoint(x + self.dueWidth - ceil(ds.width),
+    CGFloat nameX = NSMinX([self rowRect]) + 9;
+    CGFloat dueRight = NSMinX([self circleRect]) - 8;
+
+    [due drawAtPoint:NSMakePoint(dueRight - ceil(ds.width),
                                  NSMidY(self.bounds) - ds.height / 2)];
 
-    CGFloat nameX = x + self.dueWidth + kDueColumnGap;
-    CGFloat nameW = NSMinX([self circleRect]) - 7 - nameX;
+    CGFloat nameW = dueRight - self.dueWidth - kDueColumnGap - nameX;
     if (nameW > 0)
         [self.name drawInRect:NSMakeRect(nameX, NSMidY(self.bounds) - ns.height / 2,
                                          nameW, ns.height)
