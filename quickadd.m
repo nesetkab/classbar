@@ -3,6 +3,18 @@
 #import "quickadd.h"
 #import "store.h"
 
+@implementation ComposerPanel
+
+- (BOOL)canBecomeKeyWindow {
+    return YES;
+}
+
+- (void)cancelOperation:(id)sender __unused {
+    [self.composer cancel];
+}
+
+@end
+
 @implementation TaskComposer
 
 - (instancetype)init {
@@ -11,31 +23,22 @@
     return self;
 }
 
-- (NSTextField *)labelWithText:(NSString *)text {
+- (NSTextField *)mutedLabel:(NSString *)text {
     NSTextField *f = [NSTextField labelWithString:text];
     f.font = [NSFont systemFontOfSize:12];
     f.textColor = [NSColor secondaryLabelColor];
     return f;
 }
 
-- (NSButton *)buttonWithTitle:(NSString *)title action:(SEL)action {
-    NSButton *b = [NSButton buttonWithTitle:title target:self action:action];
-    b.bezelStyle = NSBezelStyleRounded;
-    b.controlSize = NSControlSizeSmall;
-    b.font = [NSFont systemFontOfSize:12];
-    b.bezelColor = nil;
-    return b;
-}
-
-- (NSDatePicker *)pickerWithElements:(NSDatePickerElementFlags)flags width:(CGFloat)w {
+- (NSDatePicker *)pickerWithElements:(NSDatePickerElementFlags)flags {
     NSDatePicker *p = [[NSDatePicker alloc] init];
     p.datePickerElements = flags;
-    p.datePickerStyle = NSDatePickerStyleTextFieldAndStepper;
+    p.datePickerStyle = NSDatePickerStyleTextField;
     p.font = [NSFont systemFontOfSize:12];
     p.bordered = NO;
     p.drawsBackground = NO;
     p.focusRingType = NSFocusRingTypeNone;
-    [p.widthAnchor constraintEqualToConstant:w].active = YES;
+    p.textColor = [NSColor labelColor];
     return p;
 }
 
@@ -49,43 +52,36 @@
     self.nameField.target = self;
     self.nameField.action = @selector(add);
 
-    self.dayPicker = [self pickerWithElements:NSDatePickerElementFlagYearMonthDay
-                                        width:104];
-    self.timePicker = [self pickerWithElements:NSDatePickerElementFlagHourMinute
-                                         width:78];
+    self.dayPicker = [self pickerWithElements:NSDatePickerElementFlagYearMonthDay];
+    self.timePicker = [self pickerWithElements:NSDatePickerElementFlagHourMinute];
 
     NSView *spacer = [[NSView alloc] init];
     [spacer setContentHuggingPriority:NSLayoutPriorityDefaultLow
                        forOrientation:NSLayoutConstraintOrientationHorizontal];
 
-    NSButton *add = [self buttonWithTitle:@"Add" action:@selector(add)];
-    add.keyEquivalent = @"\r";
+    NSTextField *hint = [self mutedLabel:@"return to add"];
+    hint.font = [NSFont systemFontOfSize:10.5];
+    hint.textColor = [NSColor tertiaryLabelColor];
 
     NSStackView *dueRow = [NSStackView stackViewWithViews:@[
-        [self labelWithText:@"Due"], self.dayPicker, self.timePicker, spacer]];
-    dueRow.spacing = 8;
+        [self mutedLabel:@"Due"], self.dayPicker, self.timePicker, spacer, hint]];
+    dueRow.spacing = 10;
 
-    NSView *buttonSpacer = [[NSView alloc] init];
-    [buttonSpacer setContentHuggingPriority:NSLayoutPriorityDefaultLow
-                             forOrientation:NSLayoutConstraintOrientationHorizontal];
-    NSStackView *buttons = [NSStackView stackViewWithViews:@[
-        buttonSpacer,
-        [self buttonWithTitle:@"Cancel" action:@selector(cancel)], add]];
-    buttons.spacing = 8;
-
-    NSStackView *root = [NSStackView stackViewWithViews:@[
-        self.nameField, dueRow, buttons]];
+    NSStackView *root = [NSStackView stackViewWithViews:@[self.nameField, dueRow]];
     root.orientation = NSUserInterfaceLayoutOrientationVertical;
     root.alignment = NSLayoutAttributeLeading;
-    root.spacing = 10;
+    root.spacing = 9;
     root.edgeInsets = NSEdgeInsetsMake(12, 14, 12, 14);
     root.translatesAutoresizingMaskIntoConstraints = NO;
 
     self.backdrop = [[NSVisualEffectView alloc]
-        initWithFrame:NSMakeRect(0, 0, 320, 112)];
+        initWithFrame:NSMakeRect(0, 0, 320, 74)];
     self.backdrop.material = NSVisualEffectMaterialMenu;
     self.backdrop.blendingMode = NSVisualEffectBlendingModeBehindWindow;
     self.backdrop.state = NSVisualEffectStateActive;
+    self.backdrop.wantsLayer = YES;
+    self.backdrop.layer.cornerRadius = 10;
+    self.backdrop.layer.masksToBounds = YES;
     [self.backdrop addSubview:root];
 
     self.widthRule = [self.backdrop.widthAnchor constraintEqualToConstant:320];
@@ -98,26 +94,26 @@
         [self.nameField.widthAnchor constraintEqualToAnchor:root.widthAnchor
                                                    constant:-28],
         [dueRow.widthAnchor constraintEqualToAnchor:root.widthAnchor constant:-28],
-        [buttons.widthAnchor constraintEqualToAnchor:root.widthAnchor constant:-28],
     ]];
 
-    NSViewController *vc = [[NSViewController alloc] init];
-    vc.view = self.backdrop;
-
-    self.popover = [[NSPopover alloc] init];
-    self.popover.contentViewController = vc;
-    self.popover.behavior = NSPopoverBehaviorTransient;
-    self.popover.animates = NO;
-    self.popover.delegate = self;
+    self.panel = [[ComposerPanel alloc]
+        initWithContentRect:NSMakeRect(0, 0, 320, 74)
+                  styleMask:NSWindowStyleMaskBorderless |
+                            NSWindowStyleMaskNonactivatingPanel
+                    backing:NSBackingStoreBuffered
+                      defer:NO];
+    self.panel.composer = self;
+    self.panel.opaque = NO;
+    self.panel.backgroundColor = [NSColor clearColor];
+    self.panel.hasShadow = YES;
+    self.panel.level = NSPopUpMenuWindowLevel;
+    self.panel.releasedWhenClosed = NO;
+    self.panel.contentView = self.backdrop;
+    self.panel.collectionBehavior = NSWindowCollectionBehaviorCanJoinAllSpaces |
+                                    NSWindowCollectionBehaviorFullScreenAuxiliary;
 }
 
-- (void)showRelativeTo:(NSView *)anchor width:(CGFloat)width {
-    self.widthRule.constant = MAX(280.0, width);
-    [self.backdrop layoutSubtreeIfNeeded];
-    CGFloat height = self.backdrop.fittingSize.height;
-    if (height < 60) height = 112;
-    self.popover.contentSize = NSMakeSize(self.widthRule.constant, height);
-
+- (void)showBelow:(NSView *)anchor width:(CGFloat)width {
     NSCalendar *cal = [NSCalendar currentCalendar];
     NSDateComponents *parts = [cal components:(NSCalendarUnitYear | NSCalendarUnitMonth |
                                                NSCalendarUnitDay)
@@ -130,17 +126,30 @@
     self.dayPicker.dateValue = tonight;
     self.timePicker.dateValue = tonight;
 
-    if (!anchor) return;
+    self.widthRule.constant = MAX(280.0, width);
+    [self.backdrop layoutSubtreeIfNeeded];
+    CGFloat height = self.backdrop.fittingSize.height;
+    if (height < 50) height = 74;
+    [self.panel setContentSize:NSMakeSize(self.widthRule.constant, height)];
+
+    if (!anchor.window) return;
+    NSRect item = [anchor.window convertRectToScreen:anchor.bounds];
+    [self.panel setFrameOrigin:NSMakePoint(NSMinX(item),
+                                           NSMinY(item) - height - 5)];
+
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [[NSNotificationCenter defaultCenter]
+        addObserver:self selector:@selector(cancel)
+               name:NSWindowDidResignKeyNotification object:self.panel];
 
     [NSApp activateIgnoringOtherApps:YES];
-    [self.popover showRelativeToRect:anchor.bounds ofView:anchor
-                       preferredEdge:NSRectEdgeMaxY];
-    [self.popover.contentViewController.view.window
-        makeFirstResponder:self.nameField];
+    [self.panel makeKeyAndOrderFront:nil];
+    [self.panel makeFirstResponder:self.nameField];
 }
 
 - (void)cancel {
-    [self.popover performClose:nil];
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+    [self.panel orderOut:nil];
 }
 
 - (NSDate *)chosenDue {
@@ -169,11 +178,15 @@
     self.adding = YES;
     AddTask(name, [self chosenDue]);
     self.nameField.stringValue = @"";
-    [self.popover performClose:nil];
+    [self cancel];
     self.adding = NO;
 
     if (self.target && self.addedAction)
         ((void (*)(id, SEL))objc_msgSend)(self.target, self.addedAction);
+}
+
+- (void)dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
 }
 
 @end

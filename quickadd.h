@@ -1,16 +1,22 @@
 #import <Cocoa/Cocoa.h>
 
-@interface TaskComposer : NSObject <NSPopoverDelegate>
-@property (strong) NSPopover *popover;
+@class TaskComposer;
+
+@interface ComposerPanel : NSPanel
+@property (weak) TaskComposer *composer;
+@end
+
+@interface TaskComposer : NSObject
+@property (strong) ComposerPanel *panel;
+@property (strong) NSVisualEffectView *backdrop;
 @property (strong) NSTextField *nameField;
 @property (strong) NSDatePicker *dayPicker;
 @property (strong) NSDatePicker *timePicker;
+@property (strong) NSLayoutConstraint *widthRule;
 @property (weak)   id target;
 @property (assign) SEL addedAction;
 @property (assign) BOOL adding;
-@property (strong) NSVisualEffectView *backdrop;
-@property (strong) NSLayoutConstraint *widthRule;
-- (void)showRelativeTo:(NSView *)anchor width:(CGFloat)width;
+- (void)showBelow:(NSView *)anchor width:(CGFloat)width;
 - (void)add;
 - (void)cancel;
 - (NSDate *)chosenDue;

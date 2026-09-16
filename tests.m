@@ -97,10 +97,10 @@ int main(int argc, char **argv) {
 
         if (argc > 2 && strcmp(argv[1], "--composer") == 0) {
             TaskComposer *c = [[TaskComposer alloc] init];
-            [c showRelativeTo:nil width:320];
-            [c.popover performClose:nil];
+            CGFloat w = argc > 3 ? atof(argv[3]) : 372;
+            [c showBelow:nil width:w];
             NSView *v = c.backdrop;
-            v.frame = NSMakeRect(0, 0, 320, v.fittingSize.height);
+            v.frame = NSMakeRect(0, 0, w, v.fittingSize.height);
             [v layoutSubtreeIfNeeded];
             CGFloat pad = 14;
             NSImage *sheet = [[NSImage alloc]
@@ -687,7 +687,7 @@ int main(int argc, char **argv) {
 
         printf("\ntask composer\n");
         TaskComposer *composer = [[TaskComposer alloc] init];
-        [composer.popover.contentViewController.view layoutSubtreeIfNeeded];
+        [composer.backdrop layoutSubtreeIfNeeded];
         NSCalendar *cCal = [NSCalendar currentCalendar];
         NSDateComponents *dayParts = [[NSDateComponents alloc] init];
         dayParts.year = 2026; dayParts.month = 9; dayParts.day = 22;
@@ -703,8 +703,22 @@ int main(int argc, char **argv) {
         struct { const char *label; BOOL ok; } composerChecks[] = {
             { "day and time are separate", composer.dayPicker != nil &&
                                            composer.timePicker != nil },
-            { "it is a popover",           composer.popover != nil &&
-                  composer.popover.behavior == NSPopoverBehaviorTransient },
+            { "it is a borderless panel",  composer.panel != nil &&
+                  !(composer.panel.styleMask & NSWindowStyleMaskTitled) &&
+                  [composer.panel canBecomeKeyWindow] },
+            { "it takes the menu width",   ({
+                  [composer showBelow:nil width:412];
+                  NSWidth(composer.backdrop.frame) == 412; }) },
+            { "no buttons in the sheet",   ({
+                  NSMutableArray *q = [@[composer.backdrop] mutableCopy];
+                  BOOL none = YES;
+                  while (q.count) {
+                      NSView *v = q.firstObject;
+                      [q removeObjectAtIndex:0];
+                      if ([v isKindOfClass:[NSButton class]]) none = NO;
+                      [q addObjectsFromArray:v.subviews];
+                  }
+                  none; }) },
             { "due combines both fields",  got.year == 2026 && got.month == 9 &&
                   got.day == 22 && got.hour == 17 && got.minute == 30 },
             { "one add cannot re-enter",   ({

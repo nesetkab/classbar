@@ -240,7 +240,7 @@ static const NSTimeInterval kStaleSeconds = 300;
         self.composer = [[TaskComposer alloc] init];
         self.composer.target = self;
     }
-    [self.composer showRelativeTo:self.status.button width:self.menuWidth];
+    [self.composer showBelow:self.status.button width:self.menuWidth];
 }
 
 - (void)settingsSaved {
