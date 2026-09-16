@@ -146,7 +146,7 @@ static const NSTimeInterval kStaleSeconds = 300;
     CGFloat dueWidth = ceil(dueMax);
     CGFloat cardWidth = MAX(292.0,
                             dueWidth + kDueColumnGap + ceil(nameMax) +
-                            kDoneCircleWidth + 40.0);
+                            kDoneCircleWidth + 26.0);
     self.menuWidth = cardWidth;
 
     NSArray *series = cb_series(self.schedule, ymd, mins, day, 2);
@@ -192,7 +192,9 @@ static const NSTimeInterval kStaleSeconds = 300;
             [menu addItem:AssignmentItem(a, dl, Clip(nm, 46),
                                          [ur isKindOfClass:[NSString class]] ? ur : @"",
                                          tip, late, doneMap[DoneKey(a)] != nil,
-                                         RailForCourse(self.schedule, cs),
+                                         [a[@"task"] boolValue]
+                                             ? TaskColor()
+                                             : RailForCourse(self.schedule, cs),
                                          dueWidth, cardWidth,
                                          self, @selector(toggleDone:))];
         }

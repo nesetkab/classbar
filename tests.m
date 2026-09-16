@@ -121,6 +121,7 @@ int main(int argc, char **argv) {
                 v.done = [r[3] boolValue];
                 v.dueWidth = dueWidth;
                 v.hovered = (i == 1);
+                v.rail = i == 3 ? TaskColor() : CoursePalette()[i];
                 v.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
                 NSRect slot = NSMakeRect(pad,
                                          sheet.size.height - pad - (h + 4) * (i + 1), w, h);
@@ -166,7 +167,7 @@ int main(int argc, char **argv) {
                 AssignmentView *v = [[AssignmentView alloc]
                     initWithFrame:NSMakeRect(0, 0, w, 22)];
                 v.name = r[0]; v.due = r[1]; v.done = [r[2] boolValue];
-                v.rail = [r[3] length] ? CoursePalette()[[r[4] intValue]] : nil;
+                v.rail = [r[3] length] ? CoursePalette()[[r[4] intValue]] : TaskColor();
                 v.dueWidth = dueWidth;
                 [rows addObject:v];
             }

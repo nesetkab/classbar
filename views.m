@@ -11,8 +11,9 @@ const CGFloat kDoneCircleWidth = 26.0;
 static const CGFloat kRowInset = 5.0;
 static const CGFloat kTextInset = 9.0;
 static const CGFloat kRowRadius = 6.0;
-static const CGFloat kDotColumn = 14.0;
-static const CGFloat kDotSize = 7.0;
+NSColor *TaskColor(void) {
+    return [NSColor colorWithSRGBRed:0.478 green:0.780 blue:0.769 alpha:1.0];
+}
 
 NSString *SquashKey(NSString *s) {
     if (![s isKindOfClass:[NSString class]]) return @"";
@@ -746,17 +747,18 @@ NSFont *NameFont(void) {
 
 - (void)drawCircle {
     NSRect c = [self circleRect];
-    NSColor *ink = self.hovered ? [NSColor alternateSelectedControlTextColor]
-                                : [NSColor tertiaryLabelColor];
-    CGFloat ringAlpha = self.overCircle ? 1.0
-                      : ((self.hovered || self.done) ? 0.65 : 0.3);
-    NSBezierPath *ring = [NSBezierPath bezierPathWithOvalInRect:NSInsetRect(c, 1, 1)];
-    ring.lineWidth = 1.5;
-    [[ink colorWithAlphaComponent:ringAlpha] setStroke];
-    [ring stroke];
-    if (!self.done) return;
-    [[ink colorWithAlphaComponent:0.9] setFill];
-    [[NSBezierPath bezierPathWithOvalInRect:NSInsetRect(c, 4, 4)] fill];
+    NSColor *tint = self.rail ?: [NSColor tertiaryLabelColor];
+
+    if (self.hovered || self.done) {
+        NSColor *ink = self.hovered ? [NSColor alternateSelectedControlTextColor] : tint;
+        NSBezierPath *ring = [NSBezierPath bezierPathWithOvalInRect:NSInsetRect(c, 1, 1)];
+        ring.lineWidth = 1.5;
+        [[ink colorWithAlphaComponent:self.overCircle ? 1.0 : 0.6] setStroke];
+        [ring stroke];
+    }
+
+    [[tint colorWithAlphaComponent:self.done ? 0.4 : 1.0] setFill];
+    [[NSBezierPath bezierPathWithOvalInRect:NSInsetRect(c, 3, 3)] fill];
 }
 
 - (BOOL)isAccessibilityElement {
@@ -784,14 +786,6 @@ NSFont *NameFont(void) {
     }]];
 }
 
-- (void)drawDot {
-    if (!self.rail) return;
-    NSRect r = [self rowRect];
-    NSRect dot = NSMakeRect(NSMinX(r) + kTextInset, NSMidY(r) - kDotSize / 2,
-                            kDotSize, kDotSize);
-    [[self.rail colorWithAlphaComponent:self.done ? 0.35 : 1.0] setFill];
-    [[NSBezierPath bezierPathWithOvalInRect:dot] fill];
-}
 
 - (void)drawRect:(NSRect)dirty __unused {
     if (self.hovered) {
@@ -801,7 +795,6 @@ NSFont *NameFont(void) {
         [[NSColor selectedContentBackgroundColor] setFill];
         [p fill];
     }
-    [self drawDot];
 
     NSColor *dueColor = self.hovered
         ? [[NSColor alternateSelectedControlTextColor] colorWithAlphaComponent:0.8]
@@ -838,7 +831,7 @@ NSFont *NameFont(void) {
 
     NSSize ds = due.size;
     NSSize ns = [self.name sizeWithAttributes:nameAttr];
-    CGFloat nameX = NSMinX([self rowRect]) + kTextInset + kDotColumn;
+    CGFloat nameX = NSMinX([self rowRect]) + kTextInset;
     CGFloat dueRight = NSMinX([self circleRect]) - 8;
 
     [due drawAtPoint:NSMakePoint(dueRight - ceil(ds.width),
