@@ -1,6 +1,7 @@
 #import <Cocoa/Cocoa.h>
 
-@interface SettingsWindow : NSObject <NSTableViewDataSource, NSTableViewDelegate>
+@interface SettingsWindow : NSObject <NSTableViewDataSource, NSTableViewDelegate,
+                                      NSWindowDelegate>
 @property (strong) NSWindow *window;
 @property (strong) NSMutableArray *classes;
 @property (strong) NSTextField *feedField;
@@ -15,6 +16,7 @@
 @property (strong) NSTableView *doneTable;
 @property (strong) NSMutableArray *doneRows;
 @property (strong) NSMutableSet *pendingRestores;
+@property (strong) NSDictionary *savedSnapshot;
 @property (strong) NSTableView *table;
 @property (strong) NSTextField *statusLabel;
 @property (strong) NSTextField *feedStatus;
@@ -28,6 +30,8 @@
 - (void)setCap:(int)cap;
 - (NSArray *)problems;
 - (NSDictionary *)buildRoot;
+- (BOOL)hasUnsavedChanges;
+- (BOOL)writeSettings;
 - (void)openDoneSheet;
 - (void)closeDoneSheet;
 - (void)restoreAll;

@@ -669,6 +669,17 @@ int main(int argc, char **argv) {
                   high && low; }) },
             { "serialises to json",    [NSJSONSerialization
                   isValidJSONObject:rebuilt] },
+            { "a fresh load is clean", ({ [sw load]; ![sw hasUnsavedChanges]; }) },
+            { "an edit reads as dirty", ({
+                  sw.homeField.stringValue = @"https://edited.example.com/";
+                  BOOL dirty = [sw hasUnsavedChanges];
+                  [sw load];
+                  dirty && ![sw hasUnsavedChanges]; }) },
+            { "a staged restore is dirty", ({
+                  [sw.pendingRestores addObject:@"someKey"];
+                  BOOL dirty = [sw hasUnsavedChanges];
+                  [sw load];
+                  dirty && ![sw hasUnsavedChanges]; }) },
         };
         for (size_t i = 0; i < sizeof(tripChecks) / sizeof(tripChecks[0]); i++) {
             if (!tripChecks[i].ok) fails++;

@@ -24,6 +24,7 @@ static NSDate *DateFromYMD(int ymd) {
     self = [super init];
     if (self) {
         self.classes = [NSMutableArray array];
+        self.pendingRestores = [NSMutableSet set];
         [self buildWindow];
     }
     return self;
@@ -117,6 +118,7 @@ static NSDate *DateFromYMD(int ymd) {
     self.window.title = @"ClassBar Settings";
     self.window.releasedWhenClosed = NO;
     self.window.minSize = NSMakeSize(820, 560);
+    self.window.delegate = self;
     [self.window center];
 
     self.feedField = [NSTextField textFieldWithString:@""];
@@ -356,6 +358,32 @@ static NSDate *DateFromYMD(int ymd) {
     [self.table sizeLastColumnToFit];
     [self setStatus:@""];
     [self setNote:@""];
+    self.savedSnapshot = [self buildRoot];
+}
+
+- (BOOL)hasUnsavedChanges {
+    [self.window makeFirstResponder:nil];
+    if (self.pendingRestores.count) return YES;
+    if (!self.savedSnapshot) return NO;
+    return ![[self buildRoot] isEqualToDictionary:self.savedSnapshot];
+}
+
+- (BOOL)windowShouldClose:(NSWindow *)sender {
+    if (sender != self.window || ![self hasUnsavedChanges]) return YES;
+
+    NSAlert *ask = [[NSAlert alloc] init];
+    ask.messageText = @"Save your changes?";
+    ask.informativeText = @"Closing without saving discards them.";
+    [ask addButtonWithTitle:@"Save"];
+    [ask addButtonWithTitle:@"Cancel"];
+    [ask addButtonWithTitle:@"Discard"];
+    ask.buttons[2].keyEquivalent = @"d";
+    ask.buttons[2].keyEquivalentModifierMask = NSEventModifierFlagCommand;
+
+    NSModalResponse answer = [ask runModal];
+    if (answer == NSAlertSecondButtonReturn) return NO;
+    if (answer == NSAlertThirdButtonReturn) { [self load]; return YES; }
+    return [self writeSettings];
 }
 
 - (NSInteger)numberOfRowsInTableView:(NSTableView *)tv {
@@ -679,12 +707,16 @@ static NSDate *DateFromYMD(int ymd) {
 }
 
 - (void)save {
+    [self writeSettings];
+}
+
+- (BOOL)writeSettings {
     [self.window makeFirstResponder:nil];
 
     NSArray *problems = [self problems];
     if (problems.count) {
         [self alert:@"Fix these first" info:[problems componentsJoinedByString:@"\n"]];
-        return;
+        return NO;
     }
 
     NSDictionary *root = [self buildRoot];
@@ -696,7 +728,7 @@ static NSDate *DateFromYMD(int ymd) {
        withIntermediateDirectories:YES attributes:nil error:NULL];
     if (!json || ![json writeToFile:SchedulePath() atomically:YES]) {
         [self alert:@"Could not save" info:SchedulePath()];
-        return;
+        return NO;
     }
 
     if (self.pendingRestores.count) {
@@ -704,9 +736,11 @@ static NSDate *DateFromYMD(int ymd) {
         [self.pendingRestores removeAllObjects];
     }
 
+    self.savedSnapshot = root;
     [self setNote:@"Saved"];
     if (self.target && self.savedAction)
         ((void (*)(id, SEL))objc_msgSend)(self.target, self.savedAction);
+    return YES;
 }
 
 @end
