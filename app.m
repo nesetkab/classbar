@@ -3,7 +3,6 @@
 #import "app.h"
 #import "views.h"
 #import "settings.h"
-#import "quickadd.h"
 #import "ics.h"
 #import "schedule.h"
 #import "store.h"
@@ -19,7 +18,7 @@
 @property (strong) NSArray *cachedItems;
 @property (strong) NSMutableSet *sessionMarks;
 @property (strong) SettingsWindow *settings;
-@property (strong) QuickAddWindow *quickAdd;
+@property (assign) BOOL composing;
 @property (copy)   NSString *link;
 @end
 
@@ -169,6 +168,16 @@ static const NSTimeInterval kStaleSeconds = 300;
         }
     }
 
+    if (self.composing) {
+        NSCalendar *c = [NSCalendar currentCalendar];
+        NSDateComponents *parts = [c components:(NSCalendarUnitYear |
+            NSCalendarUnitMonth | NSCalendarUnitDay) fromDate:now];
+        parts.hour = 23;
+        parts.minute = 59;
+        [menu addItem:ComposeRowItem([c dateFromComponents:parts] ?: now,
+                                     self, @selector(commitTask:), cardWidth)];
+    }
+
     FooterView *fv = [[FooterView alloc] initWithFrame:NSMakeRect(0, 0, cardWidth, 26)];
     fv.autoresizingMask = NSViewWidthSizable;
     fv.target = self;
@@ -234,11 +243,22 @@ static const NSTimeInterval kStaleSeconds = 300;
 }
 
 - (void)openQuickAdd {
-    if (!self.quickAdd) {
-        self.quickAdd = [[QuickAddWindow alloc] init];
-        self.quickAdd.target = self;
+    self.composing = !self.composing;
+    NSMenu *m = self.liveMenu;
+    if (m) [self menuNeedsUpdate:m];
+}
+
+- (void)commitTask:(ComposeRowView *)row {
+    NSString *name = row.nameField.stringValue;
+    if (![name stringByTrimmingCharactersInSet:
+            [NSCharacterSet whitespaceAndNewlineCharacterSet]].length) {
+        NSBeep();
+        return;
     }
-    [self.quickAdd show];
+    AddTask(name, row.duePicker.dateValue);
+    self.composing = NO;
+    NSMenu *m = self.liveMenu;
+    if (m) [self menuNeedsUpdate:m];
 }
 
 - (void)settingsSaved {
@@ -354,6 +374,7 @@ static const NSTimeInterval kStaleSeconds = 300;
 
 - (void)menuDidClose:(NSMenu *)menu __unused {
     self.menuOpen = NO;
+    self.composing = NO;
     [self.sessionMarks removeAllObjects];
     TipHide();
     [self refreshIfOlderThan:kRefreshFloorSeconds];

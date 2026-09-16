@@ -651,6 +651,33 @@ int main(int argc, char **argv) {
             printf("  %-4s %s\n", tripChecks[i].ok ? "ok" : "FAIL", tripChecks[i].label);
         }
 
+        printf("\ncompose row\n");
+        NSWindow *probe = [[NSWindow alloc]
+            initWithContentRect:NSMakeRect(-6000, -6000, 320, 26)
+                      styleMask:NSWindowStyleMaskTitled
+                        backing:NSBackingStoreBuffered defer:NO];
+        NSMenuItem *composeItem = ComposeRowItem([NSDate date], nil, NULL, 320);
+        ComposeRowView *compose = (ComposeRowView *)composeItem.view;
+        probe.contentView = compose;
+        [compose layoutSubtreeIfNeeded];
+        BOOL focused = [probe makeFirstResponder:compose.nameField];
+        struct { const char *label; BOOL ok; } composeChecks[] = {
+            { "row carries both fields", compose.nameField != nil &&
+                                         compose.duePicker != nil },
+            { "name field takes focus",  focused },
+            { "due picker shows a time", (compose.duePicker.datePickerElements &
+                  NSDatePickerElementFlagHourMinute) != 0 },
+            { "due picker shows a date", (compose.duePicker.datePickerElements &
+                  NSDatePickerElementFlagYearMonthDay) != 0 },
+            { "fields do not overlap",   NSMaxX(compose.nameField.frame) <=
+                  NSMinX(compose.duePicker.frame) + 1 },
+        };
+        for (size_t i = 0; i < sizeof(composeChecks) / sizeof(composeChecks[0]); i++) {
+            if (!composeChecks[i].ok) fails++;
+            printf("  %-4s %s\n", composeChecks[i].ok ? "ok" : "FAIL",
+                   composeChecks[i].label);
+        }
+
         printf("\nquick tasks\n");
         NSDate *taskNow = ISODate(@"2026-09-15T00:00:00Z");
         NSArray *rawTasks = @[

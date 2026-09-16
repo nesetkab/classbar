@@ -299,7 +299,7 @@ void AddTask(NSString *name, NSDate *due) {
     if (!trimmed.length) return;
     NSMutableArray *tasks = [LoadTasks() mutableCopy];
     [tasks addObject:@{ @"name": trimmed,
-                        @"due": [ISOFormatter() stringFromDate:EndOfDay(due)],
+                        @"due": [ISOFormatter() stringFromDate:due],
                         @"task": @YES }];
     WriteTasks(tasks);
 }
