@@ -2,6 +2,7 @@
 #import "app.h"
 #import "views.h"
 #import "settings.h"
+#import "quickadd.h"
 #import "ics.h"
 #import "schedule.h"
 #import "store.h"
@@ -651,31 +652,40 @@ int main(int argc, char **argv) {
             printf("  %-4s %s\n", tripChecks[i].ok ? "ok" : "FAIL", tripChecks[i].label);
         }
 
-        printf("\ncompose row\n");
-        NSWindow *probe = [[NSWindow alloc]
-            initWithContentRect:NSMakeRect(-6000, -6000, 320, 26)
-                      styleMask:NSWindowStyleMaskTitled
-                        backing:NSBackingStoreBuffered defer:NO];
-        NSMenuItem *composeItem = ComposeRowItem([NSDate date], nil, NULL, 320);
-        ComposeRowView *compose = (ComposeRowView *)composeItem.view;
-        probe.contentView = compose;
-        [compose layoutSubtreeIfNeeded];
-        BOOL focused = [probe makeFirstResponder:compose.nameField];
-        struct { const char *label; BOOL ok; } composeChecks[] = {
-            { "row carries both fields", compose.nameField != nil &&
-                                         compose.duePicker != nil },
-            { "name field takes focus",  focused },
-            { "due picker shows a time", (compose.duePicker.datePickerElements &
-                  NSDatePickerElementFlagHourMinute) != 0 },
-            { "due picker shows a date", (compose.duePicker.datePickerElements &
-                  NSDatePickerElementFlagYearMonthDay) != 0 },
-            { "fields do not overlap",   NSMaxX(compose.nameField.frame) <=
-                  NSMinX(compose.duePicker.frame) + 1 },
+        printf("\ntask composer\n");
+        TaskComposer *composer = [[TaskComposer alloc] init];
+        [composer.popover.contentViewController.view layoutSubtreeIfNeeded];
+        NSCalendar *cCal = [NSCalendar currentCalendar];
+        NSDateComponents *dayParts = [[NSDateComponents alloc] init];
+        dayParts.year = 2026; dayParts.month = 9; dayParts.day = 22;
+        NSDateComponents *timeParts = [[NSDateComponents alloc] init];
+        timeParts.year = 2000; timeParts.month = 1; timeParts.day = 1;
+        timeParts.hour = 17; timeParts.minute = 30;
+        composer.dayPicker.dateValue = [cCal dateFromComponents:dayParts];
+        composer.timePicker.dateValue = [cCal dateFromComponents:timeParts];
+        NSDateComponents *got = [cCal components:(NSCalendarUnitYear |
+            NSCalendarUnitMonth | NSCalendarUnitDay | NSCalendarUnitHour |
+            NSCalendarUnitMinute) fromDate:[composer chosenDue]];
+
+        struct { const char *label; BOOL ok; } composerChecks[] = {
+            { "day and time are separate", composer.dayPicker != nil &&
+                                           composer.timePicker != nil },
+            { "it is a popover",           composer.popover != nil &&
+                  composer.popover.behavior == NSPopoverBehaviorTransient },
+            { "due combines both fields",  got.year == 2026 && got.month == 9 &&
+                  got.day == 22 && got.hour == 17 && got.minute == 30 },
+            { "one add cannot re-enter",   ({
+                  composer.adding = YES;
+                  NSUInteger before = LoadTasks().count;
+                  composer.nameField.stringValue = @"probe task";
+                  [composer add];
+                  composer.adding = NO;
+                  LoadTasks().count == before; }) },
         };
-        for (size_t i = 0; i < sizeof(composeChecks) / sizeof(composeChecks[0]); i++) {
-            if (!composeChecks[i].ok) fails++;
-            printf("  %-4s %s\n", composeChecks[i].ok ? "ok" : "FAIL",
-                   composeChecks[i].label);
+        for (size_t i = 0; i < sizeof(composerChecks) / sizeof(composerChecks[0]); i++) {
+            if (!composerChecks[i].ok) fails++;
+            printf("  %-4s %s\n", composerChecks[i].ok ? "ok" : "FAIL",
+                   composerChecks[i].label);
         }
 
         printf("\nquick tasks\n");
@@ -725,15 +735,15 @@ int main(int argc, char **argv) {
             NSDateComponents *add = [[NSDateComponents alloc] init];
             add.day = dueCases[i].addDays;
             NSDate *d = [dueCal dateByAddingComponents:add toDate:midnight options:0];
-            NSString *got = DueLabel(dueCal, d);
-            NSDateComponents *c = [dueCal components:
+            NSString *shown = DueLabel(dueCal, d);
+            NSDateComponents *md = [dueCal components:
                 (NSCalendarUnitMonth | NSCalendarUnitDay) fromDate:d];
             NSString *want = [NSString stringWithFormat:@"%ld/%ld",
-                              (long)c.month, (long)c.day];
-            BOOL ok = [got isEqualToString:want];
+                              (long)md.month, (long)md.day];
+            BOOL ok = [shown isEqualToString:want];
             if (!ok) fails++;
             printf("  %-4s %-24s %s\n", ok ? "ok" : "FAIL",
-                   dueCases[i].label, got.UTF8String);
+                   dueCases[i].label, shown.UTF8String);
         }
 
         printf("\nassignment cache\n");

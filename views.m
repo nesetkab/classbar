@@ -144,85 +144,6 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 
 @end
 
-@implementation ComposeRowView
-
-- (instancetype)initWithFrame:(NSRect)frame {
-    self = [super initWithFrame:frame];
-    if (!self) return self;
-
-    self.nameField = [NSTextField textFieldWithString:@""];
-    self.nameField.placeholderString = @"New task";
-    self.nameField.bordered = NO;
-    self.nameField.drawsBackground = NO;
-    self.nameField.font = [NSFont systemFontOfSize:12];
-    self.nameField.focusRingType = NSFocusRingTypeNone;
-    self.nameField.translatesAutoresizingMaskIntoConstraints = NO;
-
-    self.duePicker = [[NSDatePicker alloc] init];
-    self.duePicker.datePickerElements =
-        NSDatePickerElementFlagYearMonthDay | NSDatePickerElementFlagHourMinute;
-    self.duePicker.datePickerStyle = NSDatePickerStyleTextField;
-    self.duePicker.bordered = NO;
-    self.duePicker.drawsBackground = NO;
-    self.duePicker.font = [NSFont systemFontOfSize:11];
-    self.duePicker.focusRingType = NSFocusRingTypeNone;
-    self.duePicker.translatesAutoresizingMaskIntoConstraints = NO;
-
-    [self addSubview:self.nameField];
-    [self addSubview:self.duePicker];
-    [NSLayoutConstraint activateConstraints:@[
-        [self.nameField.leadingAnchor constraintEqualToAnchor:self.leadingAnchor
-                                                     constant:14],
-        [self.nameField.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
-        [self.duePicker.leadingAnchor
-            constraintEqualToAnchor:self.nameField.trailingAnchor constant:8],
-        [self.duePicker.trailingAnchor constraintEqualToAnchor:self.trailingAnchor
-                                                      constant:-14],
-        [self.duePicker.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
-        [self.duePicker.widthAnchor constraintEqualToConstant:132],
-    ]];
-    return self;
-}
-
-- (BOOL)acceptsFirstResponder {
-    return YES;
-}
-
-- (void)viewDidMoveToWindow {
-    [super viewDidMoveToWindow];
-    if (self.window) [self.window makeFirstResponder:self.nameField];
-}
-
-- (void)commit {
-    if (self.target && self.action)
-        ((void (*)(id, SEL, id))objc_msgSend)(self.target, self.action, self);
-}
-
-- (void)drawRect:(NSRect)dirty __unused {
-    NSRect box = NSInsetRect(self.bounds, 5, 1);
-    NSBezierPath *p = [NSBezierPath bezierPathWithRoundedRect:box xRadius:5 yRadius:5];
-    [[NSColor unemphasizedSelectedContentBackgroundColor] setFill];
-    [p fill];
-    [[NSColor separatorColor] setStroke];
-    [p stroke];
-}
-
-@end
-
-NSMenuItem *ComposeRowItem(NSDate *due, id target, SEL action, CGFloat width) {
-    ComposeRowView *v = [[ComposeRowView alloc]
-        initWithFrame:NSMakeRect(0, 0, width, 26)];
-    v.autoresizingMask = NSViewWidthSizable;
-    v.duePicker.dateValue = due;
-    v.target = target;
-    v.action = action;
-    v.nameField.target = v;
-    v.nameField.action = @selector(commit);
-    NSMenuItem *i = [[NSMenuItem alloc] init];
-    i.view = v;
-    return i;
-}
-
 @interface CardView : HoverTipView
 @property (copy) NSString *title;
 @property (copy) NSString *code;
@@ -663,6 +584,7 @@ NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *
     if (NSPointInRect(pt, NSInsetRect([self refreshRect], -4, -4))) {
         sel = self.refreshAction;
     } else if (NSPointInRect(pt, NSInsetRect([self plusRect], -4, -4))) {
+        [self.enclosingMenuItem.menu cancelTracking];
         sel = self.plusAction;
     } else if (NSPointInRect(pt, NSInsetRect([self gearRect], -4, -4))) {
         [self.enclosingMenuItem.menu cancelTracking];
