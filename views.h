@@ -22,6 +22,7 @@ extern const CGFloat kDoneCircleWidth;
 @property (strong) NSDatePicker *timePicker;
 @property (assign) BOOL committed;
 @property (assign) BOOL cancelled;
+@property (strong) NSLayoutConstraint *nameLeading;
 @property (weak)   id target;
 @property (assign) SEL action;
 - (NSDate *)chosenDue;
@@ -63,8 +64,8 @@ NSMenuItem *AssignmentItem(NSDictionary *item, NSString *due, NSString *name,
                            NSString *link, NSString *tip, BOOL late, BOOL done,
                            CGFloat dueWidth, CGFloat width,
                            id target, SEL toggleAction);
-NSMenuItem *ComposeRowItem(NSString *name, NSDate *due, id target,
-                           SEL action, CGFloat width);
+NSMenuItem *ComposeRowItem(NSString *name, NSDate *due, CGFloat dueWidth,
+                           id target, SEL action, CGFloat width);
 NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *room,
                      NSString *link, NSString *zoom, NSString *tip,
                      NSColor *bg, CGFloat width);

@@ -597,6 +597,22 @@ int main(int argc, char **argv) {
                   NSWidth(sw.donePopup.superview.frame) },
             { "test button reports nearby", sw.feedStatus.superview != nil &&
                   sw.feedStatus.superview != sw.statusLabel.superview },
+            { "labels are not clipped",    ({
+                  BOOL fits = YES;
+                  NSMutableArray *q = [@[sw.window.contentView] mutableCopy];
+                  while (q.count) {
+                      NSView *v = q.firstObject;
+                      [q removeObjectAtIndex:0];
+                      if ([v isKindOfClass:[NSTextField class]]) {
+                          NSTextField *f = (NSTextField *)v;
+                          if (!f.isEditable && f.stringValue.length &&
+                              NSWidth(f.frame) > 0 &&
+                              f.intrinsicContentSize.width > NSWidth(f.frame) + 0.5)
+                              fits = NO;
+                      }
+                      [q addObjectsFromArray:v.subviews];
+                  }
+                  fits; }) },
             { "info tips carry their text", ({
                   NSMutableArray *tips = [NSMutableArray array];
                   NSMutableArray *queue = [@[sw.window.contentView] mutableCopy];
@@ -657,7 +673,7 @@ int main(int argc, char **argv) {
         rowParts.year = 2026; rowParts.month = 9; rowParts.day = 22;
         rowParts.hour = 17; rowParts.minute = 30;
         NSDate *rowDue = [rowCal dateFromComponents:rowParts];
-        NSMenuItem *rowItem = ComposeRowItem(@"draft", rowDue, nil, NULL, 372);
+        NSMenuItem *rowItem = ComposeRowItem(@"draft", rowDue, 78, nil, NULL, 372);
         ComposeRowView *row = (ComposeRowView *)rowItem.view;
         [row layoutSubtreeIfNeeded];
         NSDateComponents *chosen = [rowCal components:(NSCalendarUnitYear |
@@ -668,24 +684,24 @@ int main(int argc, char **argv) {
                                         row.timePicker != nil },
             { "day and time combine",   chosen.month == 9 && chosen.day == 22 &&
                                         chosen.hour == 17 && chosen.minute == 30 },
-            { "pickers have steppers",  row.dayPicker.datePickerStyle ==
-                  NSDatePickerStyleTextFieldAndStepper },
+            { "pickers are editable",   row.dayPicker.datePickerStyle ==
+                  NSDatePickerStyleTextField && !row.dayPicker.isBezeled },
             { "commit fires once",      ({ [row commit]; BOOL first = row.committed;
                                            [row commit]; first; }) },
             { "focus loss does not add", ({
-                  NSMenuItem *it2 = ComposeRowItem(@"typed", rowDue, nil, NULL, 372);
+                  NSMenuItem *it2 = ComposeRowItem(@"typed", rowDue, 78, nil, NULL, 372);
                   ComposeRowView *r2 = (ComposeRowView *)it2.view;
                   r2.nameField.target != nil || r2.nameField.action != NULL
                       ? NO : YES; }) },
             { "return commits",          ({
-                  NSMenuItem *it3 = ComposeRowItem(@"typed", rowDue, nil, NULL, 372);
+                  NSMenuItem *it3 = ComposeRowItem(@"typed", rowDue, 78, nil, NULL, 372);
                   ComposeRowView *r3 = (ComposeRowView *)it3.view;
                   NSTextView *probe3 = [[NSTextView alloc] init];
                   [r3 control:r3.nameField textView:probe3
                       doCommandBySelector:@selector(insertNewline:)];
                   r3.committed && !r3.cancelled; }) },
             { "escape cancels",          ({
-                  NSMenuItem *it4 = ComposeRowItem(@"typed", rowDue, nil, NULL, 372);
+                  NSMenuItem *it4 = ComposeRowItem(@"typed", rowDue, 78, nil, NULL, 372);
                   ComposeRowView *r4 = (ComposeRowView *)it4.view;
                   NSTextView *probe4 = [[NSTextView alloc] init];
                   [r4 control:r4.nameField textView:probe4

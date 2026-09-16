@@ -120,7 +120,7 @@ static const NSTimeInterval kStaleSeconds = 300;
         NSFont *dueFont = DueFont([dl isEqualToString:@"late"]);
         CGFloat dw = [dl sizeWithAttributes:@{ NSFontAttributeName: dueFont }].width;
         if (dw > dueMax) dueMax = dw;
-        CGFloat nw = [Clip(nm, 36) sizeWithAttributes:rowFont].width;
+        CGFloat nw = [Clip(nm, 46) sizeWithAttributes:rowFont].width;
         if (nw > nameMax) nameMax = nw;
     }
     CGFloat dueWidth = ceil(dueMax);
@@ -165,7 +165,7 @@ static const NSTimeInterval kStaleSeconds = 300;
             NSString *tip = TipText(full,
                 @[[cs isKindOfClass:[NSString class]] ? cs : @"", whenLine]);
 
-            [menu addItem:AssignmentItem(a, dl, Clip(nm, 36),
+            [menu addItem:AssignmentItem(a, dl, Clip(nm, 46),
                                          [ur isKindOfClass:[NSString class]] ? ur : @"",
                                          tip, late, doneMap[DoneKey(a)] != nil,
                                          dueWidth, cardWidth,
@@ -183,7 +183,8 @@ static const NSTimeInterval kStaleSeconds = 300;
             self.draftDue = [cal2 dateFromComponents:parts] ?: now;
         }
         [menu addItem:ComposeRowItem(self.draftName ?: @"", self.draftDue,
-                                     self, @selector(commitTask:), cardWidth)];
+                                     dueWidth, self, @selector(commitTask:),
+                                     cardWidth)];
     }
 
     FooterView *fv = [[FooterView alloc] initWithFrame:NSMakeRect(0, 0, cardWidth, 26)];
@@ -237,7 +238,7 @@ static const NSTimeInterval kStaleSeconds = 300;
 - (void)setFooterStatus:(NSString *)text {
     self.footer.status = text;
     self.footer.needsDisplay = YES;
-    [self.settings setStatus:text];
+    [self.settings setNote:text];
 }
 
 - (void)openSettings {

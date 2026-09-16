@@ -165,9 +165,10 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
     [self addSubview:self.nameField];
     [self addSubview:self.dayPicker];
     [self addSubview:self.timePicker];
+    self.nameLeading = [self.nameField.leadingAnchor
+        constraintEqualToAnchor:self.leadingAnchor constant:14];
     [NSLayoutConstraint activateConstraints:@[
-        [self.nameField.leadingAnchor constraintEqualToAnchor:self.leadingAnchor
-                                                     constant:14],
+        self.nameLeading,
         [self.nameField.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
         [self.dayPicker.leadingAnchor
             constraintEqualToAnchor:self.nameField.trailingAnchor constant:10],
@@ -184,7 +185,7 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 - (NSDatePicker *)pickerWith:(NSDatePickerElementFlags)flags {
     NSDatePicker *p = [[NSDatePicker alloc] init];
     p.datePickerElements = flags;
-    p.datePickerStyle = NSDatePickerStyleTextFieldAndStepper;
+    p.datePickerStyle = NSDatePickerStyleTextField;
     p.font = [NSFont systemFontOfSize:11];
     p.bordered = NO;
     p.drawsBackground = NO;
@@ -240,11 +241,12 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 
 @end
 
-NSMenuItem *ComposeRowItem(NSString *name, NSDate *due, id target, SEL action,
-                           CGFloat width) {
+NSMenuItem *ComposeRowItem(NSString *name, NSDate *due, CGFloat dueWidth,
+                           id target, SEL action, CGFloat width) {
     ComposeRowView *v = [[ComposeRowView alloc]
         initWithFrame:NSMakeRect(0, 0, width, 24)];
     v.autoresizingMask = NSViewWidthSizable;
+    v.nameLeading.constant = 14 + dueWidth + kDueColumnGap;
     v.nameField.stringValue = name ?: @"";
     v.dayPicker.dateValue = due;
     v.timePicker.dateValue = due;

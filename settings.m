@@ -7,7 +7,7 @@
 #import "schedule.h"
 #import "store.h"
 
-static const CGFloat kLabelColumnWidth = 132.0;
+static const CGFloat kLabelColumnWidth = 150.0;
 
 static NSDate *DateFromYMD(int ymd) {
     NSDateComponents *c = [[NSDateComponents alloc] init];

@@ -24,6 +24,7 @@
 - (void)show;
 - (void)load;
 - (void)setStatus:(NSString *)text;
+- (void)setNote:(NSString *)text;
 - (void)setCap:(int)cap;
 - (NSArray *)problems;
 - (NSDictionary *)buildRoot;
