@@ -680,7 +680,7 @@ int main(int argc, char **argv) {
         rowParts.year = 2026; rowParts.month = 9; rowParts.day = 22;
         rowParts.hour = 17; rowParts.minute = 30;
         NSDate *rowDue = [rowCal dateFromComponents:rowParts];
-        NSMenuItem *rowItem = ComposeRowItem(@"draft", rowDue, NO, nil, NULL, nil, NULL, 372);
+        NSMenuItem *rowItem = ComposeRowItem(@"draft", rowDue, NO, NO, nil, NULL, nil, NULL, NULL, 372);
         ComposeRowView *row = (ComposeRowView *)rowItem.view;
         [row layoutSubtreeIfNeeded];
         NSDateComponents *chosen = [rowCal components:(NSCalendarUnitYear |
@@ -715,19 +715,19 @@ int main(int argc, char **argv) {
             { "commit fires once",      ({ [row commit]; BOOL first = row.committed;
                                            [row commit]; first; }) },
             { "focus loss does not add", ({
-                  NSMenuItem *it2 = ComposeRowItem(@"typed", rowDue, NO, nil, NULL, nil, NULL, 372);
+                  NSMenuItem *it2 = ComposeRowItem(@"typed", rowDue, NO, NO, nil, NULL, nil, NULL, NULL, 372);
                   ComposeRowView *r2 = (ComposeRowView *)it2.view;
                   r2.nameField.target != nil || r2.nameField.action != NULL
                       ? NO : YES; }) },
             { "return commits",          ({
-                  NSMenuItem *it3 = ComposeRowItem(@"typed", rowDue, NO, nil, NULL, nil, NULL, 372);
+                  NSMenuItem *it3 = ComposeRowItem(@"typed", rowDue, NO, NO, nil, NULL, nil, NULL, NULL, 372);
                   ComposeRowView *r3 = (ComposeRowView *)it3.view;
                   NSTextView *probe3 = [[NSTextView alloc] init];
                   [r3 control:r3.nameField textView:probe3
                       doCommandBySelector:@selector(insertNewline:)];
                   r3.committed && !r3.cancelled; }) },
             { "escape cancels",          ({
-                  NSMenuItem *it4 = ComposeRowItem(@"typed", rowDue, NO, nil, NULL, nil, NULL, 372);
+                  NSMenuItem *it4 = ComposeRowItem(@"typed", rowDue, NO, NO, nil, NULL, nil, NULL, NULL, 372);
                   ComposeRowView *r4 = (ComposeRowView *)it4.view;
                   NSTextView *probe4 = [[NSTextView alloc] init];
                   [r4 control:r4.nameField textView:probe4
@@ -741,7 +741,15 @@ int main(int argc, char **argv) {
             { "the time reads as a chip", row.timeChip.stringValue.length > 0 &&
                   ([row.timeChip.stringValue containsString:@"AM"] ||
                    [row.timeChip.stringValue containsString:@"PM"]) },
-            { "the time field is typeable", row.timeChip.isEditable },
+            { "the time list scrolls",  ({
+                  NSMenuItem *t = TimeListItem(rowDue, nil, NULL, 372);
+                  TimeListView *tv = (TimeListView *)t.view;
+                  BOOL ok4 = tv.minutes.count == 49 && tv.selected >= 0;
+                  NSRect first = [tv rowRectAt:0];
+                  NSRect last = [tv rowRectAt:48];
+                  ok4 = ok4 && NSMinY(last) < NSMinY(first);
+                  ok4 = ok4 && tv.offset > 0;
+                  ok4; }) },
         };
         for (size_t i = 0; i < sizeof(rowChecks) / sizeof(rowChecks[0]); i++) {
             if (!rowChecks[i].ok) fails++;

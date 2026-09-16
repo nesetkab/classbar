@@ -12,6 +12,7 @@ void SplitAssignmentCap(NSUInteger todo, NSUInteger done, NSUInteger cap,
                         NSUInteger *todoShown, NSUInteger *doneShown);
 NSString *HHMMshort(int m);
 int ParseTimeText(NSString *text);
+NSDate *ParseDueFromText(NSString *text, NSDate *now, NSString **cleaned);
 
 NSISO8601DateFormatter *ISOFormatter(void);
 BOOL WriteCache(NSArray *items);

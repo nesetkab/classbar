@@ -68,6 +68,142 @@ int ParseTimeText(NSString *text) {
     return hour * 60 + minute;
 }
 
+static NSInteger WeekdayWord(NSString *word) {
+    NSArray *full = @[@"monday", @"tuesday", @"wednesday", @"thursday",
+                      @"friday", @"saturday", @"sunday"];
+    NSArray *shortened = @[@"mon", @"tue", @"wed", @"thu", @"fri", @"sat", @"sun"];
+    NSUInteger i = [full indexOfObject:word];
+    if (i != NSNotFound) return (NSInteger)i;
+    i = [shortened indexOfObject:word];
+    return i == NSNotFound ? -1 : (NSInteger)i;
+}
+
+static BOOL MonthDayWord(NSString *word, NSInteger *month, NSInteger *day) {
+    NSArray *parts = [word componentsSeparatedByString:@"/"];
+    if (parts.count < 2 || parts.count > 3) return NO;
+    for (NSString *p in parts) {
+        if (!p.length) return NO;
+        for (NSUInteger i = 0; i < p.length; i++) {
+            unichar c = [p characterAtIndex:i];
+            if (c < '0' || c > '9') return NO;
+        }
+    }
+    *month = [parts[0] integerValue];
+    *day = [parts[1] integerValue];
+    return *month >= 1 && *month <= 12 && *day >= 1 && *day <= 31;
+}
+
+NSDate *ParseDueFromText(NSString *text, NSDate *now, NSString **cleaned) {
+    if (cleaned) *cleaned = text;
+    if (!text.length) return nil;
+
+    NSCalendar *cal = [NSCalendar currentCalendar];
+    NSArray *words = [text componentsSeparatedByCharactersInSet:
+        [NSCharacterSet whitespaceCharacterSet]];
+    NSMutableIndexSet *eaten = [NSMutableIndexSet indexSet];
+
+    NSInteger dayShift = -1, weekday = -1, month = -1, monthDay = -1;
+    int minutes = -1;
+
+    for (NSUInteger i = 0; i < words.count; i++) {
+        NSString *raw = words[i];
+        NSString *word = [[raw stringByTrimmingCharactersInSet:
+            [NSCharacterSet punctuationCharacterSet]] lowercaseString];
+        if (!word.length) continue;
+
+        if ([word isEqualToString:@"today"] || [word isEqualToString:@"tonight"]) {
+            dayShift = 0;
+            if ([word isEqualToString:@"tonight"] && minutes < 0) minutes = 20 * 60;
+            [eaten addIndex:i];
+            continue;
+        }
+        if ([word isEqualToString:@"tomorrow"] || [word isEqualToString:@"tmr"] ||
+            [word isEqualToString:@"tmrw"]) {
+            dayShift = 1;
+            [eaten addIndex:i];
+            continue;
+        }
+        if ([word isEqualToString:@"noon"]) {
+            minutes = 12 * 60;
+            [eaten addIndex:i];
+            continue;
+        }
+        if ([word isEqualToString:@"midnight"]) {
+            minutes = 23 * 60 + 59;
+            [eaten addIndex:i];
+            continue;
+        }
+        NSInteger wd = WeekdayWord(word);
+        if (wd >= 0) {
+            weekday = wd;
+            [eaten addIndex:i];
+            continue;
+        }
+        NSInteger m2 = -1, d2 = -1;
+        if (MonthDayWord(word, &m2, &d2)) {
+            month = m2;
+            monthDay = d2;
+            [eaten addIndex:i];
+            continue;
+        }
+        if ([word rangeOfCharacterFromSet:
+                [NSCharacterSet decimalDigitCharacterSet]].location != NSNotFound) {
+            int parsed = ParseTimeText(word);
+            BOOL looksLikeTime = [word containsString:@":"] ||
+                                 [word hasSuffix:@"am"] || [word hasSuffix:@"pm"] ||
+                                 [word hasSuffix:@"a"] || [word hasSuffix:@"p"];
+            if (parsed >= 0 && looksLikeTime) {
+                minutes = parsed;
+                [eaten addIndex:i];
+                continue;
+            }
+        }
+    }
+
+    if (!eaten.count) return nil;
+
+    NSDateComponents *parts = [cal components:(NSCalendarUnitYear |
+        NSCalendarUnitMonth | NSCalendarUnitDay) fromDate:now];
+    NSDate *day = [cal dateFromComponents:parts];
+
+    if (weekday >= 0) {
+        NSInteger todayIndex = [cal component:NSCalendarUnitWeekday fromDate:now] - 2;
+        if (todayIndex < 0) todayIndex = 6;
+        NSInteger ahead = weekday - todayIndex;
+        if (ahead <= 0) ahead += 7;
+        NSDateComponents *add = [[NSDateComponents alloc] init];
+        add.day = ahead;
+        day = [cal dateByAddingComponents:add toDate:day options:0];
+    } else if (month > 0) {
+        NSDateComponents *pick = [cal components:NSCalendarUnitYear fromDate:now];
+        pick.month = month;
+        pick.day = monthDay;
+        NSDate *made = [cal dateFromComponents:pick];
+        if (made && [made compare:day] == NSOrderedAscending) {
+            pick.year += 1;
+            made = [cal dateFromComponents:pick];
+        }
+        if (made) day = made;
+    } else if (dayShift > 0) {
+        NSDateComponents *add = [[NSDateComponents alloc] init];
+        add.day = dayShift;
+        day = [cal dateByAddingComponents:add toDate:day options:0];
+    }
+
+    NSDateComponents *out = [cal components:(NSCalendarUnitYear |
+        NSCalendarUnitMonth | NSCalendarUnitDay) fromDate:day];
+    out.hour = minutes >= 0 ? minutes / 60 : 23;
+    out.minute = minutes >= 0 ? minutes % 60 : 59;
+
+    if (cleaned) {
+        NSMutableArray *kept = [NSMutableArray array];
+        for (NSUInteger i = 0; i < words.count; i++)
+            if (![eaten containsIndex:i] && [words[i] length]) [kept addObject:words[i]];
+        *cleaned = [kept componentsJoinedByString:@" "];
+    }
+    return [cal dateFromComponents:out];
+}
+
 NSString *HHMMshort(int m) {
     int h24 = m / 60, mm = m % 60;
     int h = h24 % 12; if (h == 0) h = 12;
