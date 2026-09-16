@@ -71,10 +71,10 @@ int ParseTimeText(NSString *text) {
 static NSInteger WeekdayWord(NSString *word) {
     NSArray *full = @[@"monday", @"tuesday", @"wednesday", @"thursday",
                       @"friday", @"saturday", @"sunday"];
-    NSArray *shortened = @[@"mon", @"tue", @"wed", @"thu", @"fri", @"sat", @"sun"];
+    NSArray *brief = @[@"mon", @"tue", @"wed", @"thu", @"fri", @"sat", @"sun"];
     NSUInteger i = [full indexOfObject:word];
     if (i != NSNotFound) return (NSInteger)i;
-    i = [shortened indexOfObject:word];
+    i = [brief indexOfObject:word];
     return i == NSNotFound ? -1 : (NSInteger)i;
 }
 
@@ -93,6 +93,12 @@ static BOOL MonthDayWord(NSString *word, NSInteger *month, NSInteger *day) {
     return *month >= 1 && *month <= 12 && *day >= 1 && *day <= 31;
 }
 
+static BOOL LooksLikeTime(NSString *word) {
+    if ([word containsString:@":"]) return YES;
+    return [word hasSuffix:@"am"] || [word hasSuffix:@"pm"] ||
+           [word hasSuffix:@"a"] || [word hasSuffix:@"p"];
+}
+
 NSDate *ParseDueFromText(NSString *text, NSDate *now, NSString **cleaned) {
     if (cleaned) *cleaned = text;
     if (!text.length) return nil;
@@ -102,69 +108,52 @@ NSDate *ParseDueFromText(NSString *text, NSDate *now, NSString **cleaned) {
         [NSCharacterSet whitespaceCharacterSet]];
     NSMutableIndexSet *eaten = [NSMutableIndexSet indexSet];
 
-    NSInteger dayShift = -1, weekday = -1, month = -1, monthDay = -1;
+    NSInteger shift = -1, weekday = -1, month = -1, monthDay = -1;
     int minutes = -1;
 
     for (NSUInteger i = 0; i < words.count; i++) {
-        NSString *raw = words[i];
-        NSString *word = [[raw stringByTrimmingCharactersInSet:
+        NSString *word = [[words[i] stringByTrimmingCharactersInSet:
             [NSCharacterSet punctuationCharacterSet]] lowercaseString];
         if (!word.length) continue;
 
-        if ([word isEqualToString:@"today"] || [word isEqualToString:@"tonight"]) {
-            dayShift = 0;
-            if ([word isEqualToString:@"tonight"] && minutes < 0) minutes = 20 * 60;
-            [eaten addIndex:i];
-            continue;
+        if ([word isEqualToString:@"today"]) {
+            shift = 0; [eaten addIndex:i]; continue;
+        }
+        if ([word isEqualToString:@"tonight"]) {
+            shift = 0;
+            if (minutes < 0) minutes = 20 * 60;
+            [eaten addIndex:i]; continue;
         }
         if ([word isEqualToString:@"tomorrow"] || [word isEqualToString:@"tmr"] ||
             [word isEqualToString:@"tmrw"]) {
-            dayShift = 1;
-            [eaten addIndex:i];
-            continue;
+            shift = 1; [eaten addIndex:i]; continue;
         }
         if ([word isEqualToString:@"noon"]) {
-            minutes = 12 * 60;
-            [eaten addIndex:i];
-            continue;
+            minutes = 12 * 60; [eaten addIndex:i]; continue;
         }
         if ([word isEqualToString:@"midnight"]) {
-            minutes = 23 * 60 + 59;
-            [eaten addIndex:i];
-            continue;
+            minutes = 23 * 60 + 59; [eaten addIndex:i]; continue;
         }
+
         NSInteger wd = WeekdayWord(word);
-        if (wd >= 0) {
-            weekday = wd;
-            [eaten addIndex:i];
-            continue;
-        }
+        if (wd >= 0) { weekday = wd; [eaten addIndex:i]; continue; }
+
         NSInteger m2 = -1, d2 = -1;
         if (MonthDayWord(word, &m2, &d2)) {
-            month = m2;
-            monthDay = d2;
-            [eaten addIndex:i];
-            continue;
+            month = m2; monthDay = d2; [eaten addIndex:i]; continue;
         }
-        if ([word rangeOfCharacterFromSet:
-                [NSCharacterSet decimalDigitCharacterSet]].location != NSNotFound) {
+
+        if (LooksLikeTime(word)) {
             int parsed = ParseTimeText(word);
-            BOOL looksLikeTime = [word containsString:@":"] ||
-                                 [word hasSuffix:@"am"] || [word hasSuffix:@"pm"] ||
-                                 [word hasSuffix:@"a"] || [word hasSuffix:@"p"];
-            if (parsed >= 0 && looksLikeTime) {
-                minutes = parsed;
-                [eaten addIndex:i];
-                continue;
-            }
+            if (parsed >= 0) { minutes = parsed; [eaten addIndex:i]; continue; }
         }
     }
 
     if (!eaten.count) return nil;
 
-    NSDateComponents *parts = [cal components:(NSCalendarUnitYear |
+    NSDateComponents *base = [cal components:(NSCalendarUnitYear |
         NSCalendarUnitMonth | NSCalendarUnitDay) fromDate:now];
-    NSDate *day = [cal dateFromComponents:parts];
+    NSDate *day = [cal dateFromComponents:base];
 
     if (weekday >= 0) {
         NSInteger todayIndex = [cal component:NSCalendarUnitWeekday fromDate:now] - 2;
@@ -184,9 +173,9 @@ NSDate *ParseDueFromText(NSString *text, NSDate *now, NSString **cleaned) {
             made = [cal dateFromComponents:pick];
         }
         if (made) day = made;
-    } else if (dayShift > 0) {
+    } else if (shift > 0) {
         NSDateComponents *add = [[NSDateComponents alloc] init];
-        add.day = dayShift;
+        add.day = shift;
         day = [cal dateByAddingComponents:add toDate:day options:0];
     }
 

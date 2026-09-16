@@ -680,7 +680,7 @@ int main(int argc, char **argv) {
         rowParts.year = 2026; rowParts.month = 9; rowParts.day = 22;
         rowParts.hour = 17; rowParts.minute = 30;
         NSDate *rowDue = [rowCal dateFromComponents:rowParts];
-        NSMenuItem *rowItem = ComposeRowItem(@"draft", rowDue, NO, NO, nil, NULL, nil, NULL, NULL, 372);
+        NSMenuItem *rowItem = ComposeRowItem(@"draft", rowDue, NO, nil, NULL, nil, NULL, 372);
         ComposeRowView *row = (ComposeRowView *)rowItem.view;
         [row layoutSubtreeIfNeeded];
         NSDateComponents *chosen = [rowCal components:(NSCalendarUnitYear |
@@ -715,19 +715,19 @@ int main(int argc, char **argv) {
             { "commit fires once",      ({ [row commit]; BOOL first = row.committed;
                                            [row commit]; first; }) },
             { "focus loss does not add", ({
-                  NSMenuItem *it2 = ComposeRowItem(@"typed", rowDue, NO, NO, nil, NULL, nil, NULL, NULL, 372);
+                  NSMenuItem *it2 = ComposeRowItem(@"typed", rowDue, NO, nil, NULL, nil, NULL, 372);
                   ComposeRowView *r2 = (ComposeRowView *)it2.view;
                   r2.nameField.target != nil || r2.nameField.action != NULL
                       ? NO : YES; }) },
             { "return commits",          ({
-                  NSMenuItem *it3 = ComposeRowItem(@"typed", rowDue, NO, NO, nil, NULL, nil, NULL, NULL, 372);
+                  NSMenuItem *it3 = ComposeRowItem(@"typed", rowDue, NO, nil, NULL, nil, NULL, 372);
                   ComposeRowView *r3 = (ComposeRowView *)it3.view;
                   NSTextView *probe3 = [[NSTextView alloc] init];
                   [r3 control:r3.nameField textView:probe3
                       doCommandBySelector:@selector(insertNewline:)];
                   r3.committed && !r3.cancelled; }) },
             { "escape cancels",          ({
-                  NSMenuItem *it4 = ComposeRowItem(@"typed", rowDue, NO, NO, nil, NULL, nil, NULL, NULL, 372);
+                  NSMenuItem *it4 = ComposeRowItem(@"typed", rowDue, NO, nil, NULL, nil, NULL, 372);
                   ComposeRowView *r4 = (ComposeRowView *)it4.view;
                   NSTextView *probe4 = [[NSTextView alloc] init];
                   [r4 control:r4.nameField textView:probe4
@@ -741,15 +741,7 @@ int main(int argc, char **argv) {
             { "the time reads as a chip", row.timeChip.stringValue.length > 0 &&
                   ([row.timeChip.stringValue containsString:@"AM"] ||
                    [row.timeChip.stringValue containsString:@"PM"]) },
-            { "the time list scrolls",  ({
-                  NSMenuItem *t = TimeListItem(rowDue, nil, NULL, 372);
-                  TimeListView *tv = (TimeListView *)t.view;
-                  BOOL ok4 = tv.minutes.count == 49 && tv.selected >= 0;
-                  NSRect first = [tv rowRectAt:0];
-                  NSRect last = [tv rowRectAt:48];
-                  ok4 = ok4 && NSMinY(last) < NSMinY(first);
-                  ok4 = ok4 && tv.offset > 0;
-                  ok4; }) },
+
         };
         for (size_t i = 0; i < sizeof(rowChecks) / sizeof(rowChecks[0]); i++) {
             if (!rowChecks[i].ok) fails++;
@@ -789,6 +781,42 @@ int main(int argc, char **argv) {
             if (!taskChecks[i].ok) fails++;
             printf("  %-4s %s\n", taskChecks[i].ok ? "ok" : "FAIL", taskChecks[i].label);
         }
+
+        printf("\nreading a due date out of a name\n");
+        NSDateComponents *baseParts = [[NSDateComponents alloc] init];
+        baseParts.year = 2026; baseParts.month = 9; baseParts.day = 16;
+        baseParts.hour = 10;
+        NSDate *base = [[NSCalendar currentCalendar] dateFromComponents:baseParts];
+        struct {
+            const char *in; const char *wantName; int mon, day, hour, minute;
+        } dueCases2[] = {
+            { "finish lab report tomorrow 5pm", "finish lab report", 9, 17, 17, 0 },
+            { "read chapter 4 today",           "read chapter 4",    9, 16, 23, 59 },
+            { "essay friday",                   "essay",             9, 18, 23, 59 },
+            { "gym tonight",                    "gym",               9, 16, 20, 0 },
+            { "lunch noon",                     "lunch",             9, 16, 12, 0 },
+            { "pset 9/22",                      "pset",              9, 22, 23, 59 },
+            { "call mom 5:30pm",                "call mom",          9, 16, 17, 30 },
+        };
+        for (size_t i = 0; i < sizeof(dueCases2) / sizeof(dueCases2[0]); i++) {
+            NSString *clean = nil;
+            NSDate *got4 = ParseDueFromText(@(dueCases2[i].in), base, &clean);
+            NSDateComponents *c4 = got4 ? [[NSCalendar currentCalendar]
+                components:(NSCalendarUnitMonth | NSCalendarUnitDay |
+                            NSCalendarUnitHour | NSCalendarUnitMinute)
+                  fromDate:got4] : nil;
+            BOOL ok5 = got4 != nil && [clean isEqualToString:@(dueCases2[i].wantName)] &&
+                       c4.month == dueCases2[i].mon && c4.day == dueCases2[i].day &&
+                       c4.hour == dueCases2[i].hour && c4.minute == dueCases2[i].minute;
+            if (!ok5) fails++;
+            printf("  %-4s %-32s -> %s\n", ok5 ? "ok" : "FAIL",
+                   dueCases2[i].in, clean.UTF8String);
+        }
+        NSString *untouched = nil;
+        BOOL plain = ParseDueFromText(@"write the essay", base, &untouched) == nil &&
+                     [untouched isEqualToString:@"write the essay"];
+        if (!plain) fails++;
+        printf("  %-4s plain text keeps its name\n", plain ? "ok" : "FAIL");
 
         printf("\ntyping a time\n");
         struct { const char *in; int want; } timeCases[] = {

@@ -20,7 +20,6 @@
 @property (strong) SettingsWindow *settings;
 @property (assign) BOOL composing;
 @property (assign) BOOL pickingDay;
-@property (assign) BOOL pickingTime;
 @property (copy)   NSString *draftName;
 @property (strong) NSDate *draftDue;
 @property (assign) CGFloat menuWidth;
@@ -185,16 +184,12 @@ static const NSTimeInterval kStaleSeconds = 300;
             self.draftDue = [cal2 dateFromComponents:parts] ?: now;
         }
         [menu addItem:ComposeRowItem(self.draftName ?: @"", self.draftDue,
-                                     self.pickingDay, self.pickingTime, self,
+                                     self.pickingDay, self,
                                      @selector(commitTask:), self,
-                                     @selector(toggleDayPicker:),
-                                     @selector(toggleTimePicker:), cardWidth)];
+                                     @selector(toggleDayPicker:), cardWidth)];
         if (self.pickingDay)
             [menu addItem:CalendarRowItem(self.draftDue, self,
                                           @selector(dayPicked:), cardWidth)];
-        if (self.pickingTime)
-            [menu addItem:TimeListItem(self.draftDue, self,
-                                       @selector(timePicked:), cardWidth)];
     }
 
     FooterView *fv = [[FooterView alloc] initWithFrame:NSMakeRect(0, 0, cardWidth, 26)];
@@ -293,7 +288,7 @@ static const NSTimeInterval kStaleSeconds = 300;
 
 - (void)openQuickAdd {
     self.composing = !self.composing;
-    if (!self.composing) { self.pickingDay = NO; self.pickingTime = NO; [self clearDraft]; }
+    if (!self.composing) { self.pickingDay = NO; [self clearDraft]; }
     [self rebuildSoon];
 }
 
@@ -301,7 +296,6 @@ static const NSTimeInterval kStaleSeconds = 300;
     self.draftName = row.nameField.stringValue;
     self.draftDue = [row chosenDue];
     self.pickingDay = !self.pickingDay;
-    self.pickingTime = NO;
     [self rebuildSoon];
 }
 
@@ -310,37 +304,13 @@ static const NSTimeInterval kStaleSeconds = 300;
     [self rebuildSoon];
 }
 
-- (void)toggleTimePicker:(ComposeRowView *)row {
-    self.draftName = row.nameField.stringValue;
-    self.draftDue = [row chosenDue];
-    self.pickingTime = !self.pickingTime;
-    self.pickingDay = NO;
-    [self rebuildSoon];
-}
-
-- (void)timePicked:(TimeListView *)list {
-    NSInteger minutes = [list pickedMinutes];
-    if (minutes >= 0) {
-        NSCalendar *cal = [NSCalendar currentCalendar];
-        NSDateComponents *parts = [cal components:(NSCalendarUnitYear |
-            NSCalendarUnitMonth | NSCalendarUnitDay)
-                                         fromDate:self.draftDue ?: [NSDate date]];
-        parts.hour = minutes / 60;
-        parts.minute = minutes % 60;
-        self.draftDue = [cal dateFromComponents:parts] ?: self.draftDue;
-    }
-    self.pickingTime = NO;
-    [self rebuildSoon];
-}
-
 - (void)commitTask:(ComposeRowView *)row {
-    NSString *name = row.nameField.stringValue;
+    NSString *name = row.cleanName.length ? row.cleanName : row.nameField.stringValue;
     if (!row.cancelled && [name stringByTrimmingCharactersInSet:
             [NSCharacterSet whitespaceAndNewlineCharacterSet]].length)
         AddTask(name, [row chosenDue]);
     self.composing = NO;
     self.pickingDay = NO;
-    self.pickingTime = NO;
     [self clearDraft];
     [self rebuildSoon];
 }
@@ -460,7 +430,6 @@ static const NSTimeInterval kStaleSeconds = 300;
     self.menuOpen = NO;
     self.composing = NO;
     self.pickingDay = NO;
-    self.pickingTime = NO;
     [self clearDraft];
     [self.sessionMarks removeAllObjects];
     TipHide();

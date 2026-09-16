@@ -24,9 +24,9 @@ extern const CGFloat kDoneCircleWidth;
 @property (strong, nonatomic) NSDate *timeValue;
 @property (weak)   id chipTarget;
 @property (assign) SEL dayAction;
-@property (assign) SEL timeAction;
 @property (assign) BOOL dayOpen;
-@property (assign) BOOL timeOpen;
+@property (copy)   NSString *cleanName;
+@property (strong) NSDate *typedBase;
 @property (assign) BOOL committed;
 @property (assign) BOOL cancelled;
 @property (strong) NSLayoutConstraint *nameLeading;
@@ -40,17 +40,6 @@ extern const CGFloat kDoneCircleWidth;
 @property (strong) NSDatePicker *calendar;
 @property (weak)   id target;
 @property (assign) SEL action;
-@end
-
-@interface TimeListView : NSView
-@property (strong) NSArray *minutes;
-@property (assign) NSInteger hovered;
-@property (assign) NSInteger selected;
-@property (assign) CGFloat offset;
-@property (weak)   id target;
-@property (assign) SEL action;
-- (NSInteger)pickedMinutes;
-- (NSRect)rowRectAt:(NSInteger)index;
 @end
 
 @interface AssignmentView : HoverTipView
@@ -88,11 +77,10 @@ NSMenuItem *AssignmentItem(NSDictionary *item, NSString *due, NSString *name,
                            NSString *link, NSString *tip, BOOL late, BOOL done,
                            CGFloat dueWidth, CGFloat width,
                            id target, SEL toggleAction);
-NSMenuItem *ComposeRowItem(NSString *name, NSDate *due, BOOL dayOpen, BOOL timeOpen,
+NSMenuItem *ComposeRowItem(NSString *name, NSDate *due, BOOL dayOpen,
                            id target, SEL action, id chipTarget,
-                           SEL dayAction, SEL timeAction, CGFloat width);
+                           SEL dayAction, CGFloat width);
 NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width);
-NSMenuItem *TimeListItem(NSDate *due, id target, SEL action, CGFloat width);
 NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *room,
                      NSString *link, NSString *zoom, NSString *tip,
                      NSColor *bg, CGFloat width);

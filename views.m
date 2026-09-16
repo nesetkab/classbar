@@ -216,11 +216,9 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 
 - (void)mouseUp:(NSEvent *)e {
     NSPoint pt = [self convertPoint:e.locationInWindow fromView:nil];
-    SEL sel = NULL;
-    if (NSPointInRect(pt, [self dayChipRect])) sel = self.dayAction;
-    else if (NSPointInRect(pt, [self timeChipRect])) sel = self.timeAction;
-    if (sel && self.chipTarget)
-        ((void (*)(id, SEL, id))objc_msgSend)(self.chipTarget, sel, self);
+    if (!NSPointInRect(pt, [self dayChipRect])) return;
+    if (self.dayAction && self.chipTarget)
+        ((void (*)(id, SEL, id))objc_msgSend)(self.chipTarget, self.dayAction, self);
 }
 
 - (NSDate *)chosenDue {
@@ -236,7 +234,7 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 
 - (void)drawRect:(NSRect)dirty __unused {
     [self drawChip:[self dayChipRect] open:self.dayOpen];
-    [self drawChip:[self timeChipRect] open:self.timeOpen];
+    [self drawChip:[self timeChipRect] open:NO];
 }
 
 - (void)commit {
@@ -245,6 +243,18 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
     self.nameField.delegate = nil;
     if (self.target && self.action)
         ((void (*)(id, SEL, id))objc_msgSend)(self.target, self.action, self);
+}
+
+- (void)controlTextDidChange:(NSNotification *)note __unused {
+    NSString *clean = nil;
+    NSDate *parsed = ParseDueFromText(self.nameField.stringValue,
+                                      self.typedBase ?: [NSDate date], &clean);
+    self.cleanName = parsed ? clean : self.nameField.stringValue;
+    if (parsed) {
+        self.dayValue = parsed;
+        self.timeValue = parsed;
+        self.needsDisplay = YES;
+    }
 }
 
 - (BOOL)control:(NSControl *)control
@@ -271,22 +281,22 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 
 @end
 
-NSMenuItem *ComposeRowItem(NSString *name, NSDate *due, BOOL dayOpen, BOOL timeOpen,
+NSMenuItem *ComposeRowItem(NSString *name, NSDate *due, BOOL dayOpen,
                            id target, SEL action, id chipTarget,
-                           SEL dayAction, SEL timeAction, CGFloat width) {
+                           SEL dayAction, CGFloat width) {
     ComposeRowView *v = [[ComposeRowView alloc]
         initWithFrame:NSMakeRect(0, 0, width, 26)];
     v.autoresizingMask = NSViewWidthSizable;
     v.nameField.stringValue = name ?: @"";
+    v.typedBase = [NSDate date];
+    v.cleanName = name ?: @"";
     v.dayValue = due;
     v.timeValue = due;
     v.dayOpen = dayOpen;
-    v.timeOpen = timeOpen;
     v.target = target;
     v.action = action;
     v.chipTarget = chipTarget;
     v.dayAction = dayAction;
-    v.timeAction = timeAction;
     NSMenuItem *i = [[NSMenuItem alloc] init];
     i.view = v;
     return i;
@@ -329,158 +339,6 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
     v.calendar.dateValue = due ?: [NSDate date];
     v.target = target;
     v.action = action;
-    NSMenuItem *i = [[NSMenuItem alloc] init];
-    i.view = v;
-    return i;
-}
-
-@implementation TimeListView
-
-static const CGFloat kTimeRowHeight = 22.0;
-
-- (instancetype)initWithFrame:(NSRect)frame {
-    self = [super initWithFrame:frame];
-    if (!self) return self;
-    self.hovered = -1;
-    self.selected = -1;
-    NSMutableArray *all = [NSMutableArray array];
-    for (int m = 0; m < 24 * 60; m += 30) [all addObject:@(m)];
-    [all addObject:@(23 * 60 + 59)];
-    self.minutes = all;
-    return self;
-}
-
-- (CGFloat)contentHeight {
-    return kTimeRowHeight * (CGFloat)self.minutes.count;
-}
-
-- (CGFloat)maxOffset {
-    CGFloat over = [self contentHeight] - NSHeight(self.bounds);
-    return over > 0 ? over : 0;
-}
-
-- (void)centreOn:(NSInteger)index {
-    if (index < 0) return;
-    CGFloat want = kTimeRowHeight * (CGFloat)index -
-                   (NSHeight(self.bounds) - kTimeRowHeight) / 2.0;
-    if (want < 0) want = 0;
-    if (want > [self maxOffset]) want = [self maxOffset];
-    self.offset = want;
-}
-
-- (NSRect)rowRectAt:(NSInteger)index {
-    CGFloat top = NSMaxY(self.bounds) + self.offset -
-                  kTimeRowHeight * (CGFloat)(index + 1);
-    return NSMakeRect(5, top, NSWidth(self.bounds) - 10, kTimeRowHeight);
-}
-
-- (NSInteger)rowAt:(NSPoint)pt {
-    for (NSInteger i = 0; i < (NSInteger)self.minutes.count; i++)
-        if (NSPointInRect(pt, [self rowRectAt:i])) return i;
-    return -1;
-}
-
-- (NSInteger)pickedMinutes {
-    if (self.selected < 0 || self.selected >= (NSInteger)self.minutes.count) return -1;
-    return [self.minutes[(NSUInteger)self.selected] integerValue];
-}
-
-- (void)updateTrackingAreas {
-    [super updateTrackingAreas];
-    for (NSTrackingArea *a in [self.trackingAreas copy]) [self removeTrackingArea:a];
-    [self addTrackingArea:[[NSTrackingArea alloc]
-        initWithRect:self.bounds
-             options:NSTrackingMouseEnteredAndExited | NSTrackingMouseMoved |
-                     NSTrackingActiveAlways | NSTrackingInVisibleRect
-               owner:self userInfo:nil]];
-}
-
-- (void)mouseMoved:(NSEvent *)e {
-    NSInteger was = self.hovered;
-    self.hovered = [self rowAt:[self convertPoint:e.locationInWindow fromView:nil]];
-    if (was != self.hovered) self.needsDisplay = YES;
-}
-
-- (void)mouseEntered:(NSEvent *)e {
-    [self mouseMoved:e];
-}
-
-- (void)mouseExited:(NSEvent *)e __unused {
-    if (self.hovered == -1) return;
-    self.hovered = -1;
-    self.needsDisplay = YES;
-}
-
-- (void)scrollWheel:(NSEvent *)e {
-    CGFloat next = self.offset + e.scrollingDeltaY;
-    if (next < 0) next = 0;
-    if (next > [self maxOffset]) next = [self maxOffset];
-    if (next == self.offset) return;
-    self.offset = next;
-    self.hovered = [self rowAt:[self convertPoint:e.locationInWindow fromView:nil]];
-    self.needsDisplay = YES;
-}
-
-- (void)mouseDown:(NSEvent *)e __unused {
-}
-
-- (void)mouseUp:(NSEvent *)e {
-    NSInteger i = [self rowAt:[self convertPoint:e.locationInWindow fromView:nil]];
-    if (i < 0) return;
-    self.selected = i;
-    if (self.target && self.action)
-        ((void (*)(id, SEL, id))objc_msgSend)(self.target, self.action, self);
-}
-
-- (void)drawRect:(NSRect)dirty __unused {
-    for (NSInteger i = 0; i < (NSInteger)self.minutes.count; i++) {
-        NSRect r = [self rowRectAt:i];
-        if (!NSIntersectsRect(r, self.bounds)) continue;
-
-        BOOL lit = (i == self.hovered);
-        BOOL current = (i == self.selected);
-        if (lit) {
-            NSBezierPath *p = [NSBezierPath bezierPathWithRoundedRect:r
-                                                              xRadius:5 yRadius:5];
-            [[NSColor selectedContentBackgroundColor] setFill];
-            [p fill];
-        }
-
-        NSDictionary *attr = @{
-            NSFontAttributeName: [NSFont systemFontOfSize:12
-                weight:current ? NSFontWeightSemibold : NSFontWeightRegular],
-            NSForegroundColorAttributeName: lit
-                ? [NSColor alternateSelectedControlTextColor] : [NSColor labelColor]
-        };
-        NSString *text = HHMMshort([self.minutes[(NSUInteger)i] intValue]);
-        NSSize sz = [text sizeWithAttributes:attr];
-        [text drawAtPoint:NSMakePoint(NSMinX(r) + 9, NSMidY(r) - sz.height / 2)
-           withAttributes:attr];
-    }
-}
-
-@end
-
-NSMenuItem *TimeListItem(NSDate *due, id target, SEL action, CGFloat width) {
-    TimeListView *v = [[TimeListView alloc]
-        initWithFrame:NSMakeRect(0, 0, width, 154)];
-    v.autoresizingMask = NSViewWidthSizable;
-    v.target = target;
-    v.action = action;
-
-    NSDateComponents *c = [[NSCalendar currentCalendar]
-        components:(NSCalendarUnitHour | NSCalendarUnitMinute)
-          fromDate:due ?: [NSDate date]];
-    NSInteger want = c.hour * 60 + c.minute;
-    NSInteger best = 0;
-    NSInteger bestGap = NSIntegerMax;
-    for (NSInteger i = 0; i < (NSInteger)v.minutes.count; i++) {
-        NSInteger gap = labs([v.minutes[(NSUInteger)i] integerValue] - want);
-        if (gap < bestGap) { bestGap = gap; best = i; }
-    }
-    v.selected = best;
-    [v centreOn:best];
-
     NSMenuItem *i = [[NSMenuItem alloc] init];
     i.view = v;
     return i;
