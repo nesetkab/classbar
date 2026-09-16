@@ -157,8 +157,7 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
     self.nameField.font = [NSFont systemFontOfSize:12];
     self.nameField.focusRingType = NSFocusRingTypeNone;
     self.nameField.translatesAutoresizingMaskIntoConstraints = NO;
-    self.nameField.target = self;
-    self.nameField.action = @selector(commit);
+    self.nameField.delegate = self;
 
     self.dayPicker = [self pickerWith:NSDatePickerElementFlagYearMonthDay];
     self.timePicker = [self pickerWith:NSDatePickerElementFlagHourMinute];
@@ -212,10 +211,26 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 - (void)commit {
     if (self.committed) return;
     self.committed = YES;
-    self.nameField.target = nil;
-    self.nameField.action = NULL;
+    self.nameField.delegate = nil;
     if (self.target && self.action)
         ((void (*)(id, SEL, id))objc_msgSend)(self.target, self.action, self);
+}
+
+- (BOOL)control:(NSControl *)control
+       textView:(NSTextView *)view
+       doCommandBySelector:(SEL)command {
+    (void)control;
+    (void)view;
+    if (command == @selector(insertNewline:)) {
+        [self commit];
+        return YES;
+    }
+    if (command == @selector(cancelOperation:)) {
+        self.cancelled = YES;
+        [self commit];
+        return YES;
+    }
+    return NO;
 }
 
 - (void)viewDidMoveToWindow {

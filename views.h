@@ -16,11 +16,12 @@ extern const CGFloat kDoneCircleWidth;
 @interface InfoTipView : HoverTipView
 @end
 
-@interface ComposeRowView : NSView
+@interface ComposeRowView : NSView <NSTextFieldDelegate>
 @property (strong) NSTextField *nameField;
 @property (strong) NSDatePicker *dayPicker;
 @property (strong) NSDatePicker *timePicker;
 @property (assign) BOOL committed;
+@property (assign) BOOL cancelled;
 @property (weak)   id target;
 @property (assign) SEL action;
 - (NSDate *)chosenDue;

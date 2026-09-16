@@ -282,7 +282,7 @@ static const NSTimeInterval kStaleSeconds = 300;
 
 - (void)commitTask:(ComposeRowView *)row {
     NSString *name = row.nameField.stringValue;
-    if ([name stringByTrimmingCharactersInSet:
+    if (!row.cancelled && [name stringByTrimmingCharactersInSet:
             [NSCharacterSet whitespaceAndNewlineCharacterSet]].length)
         AddTask(name, [row chosenDue]);
     self.composing = NO;

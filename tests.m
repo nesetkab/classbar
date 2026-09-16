@@ -672,6 +672,23 @@ int main(int argc, char **argv) {
                   NSDatePickerStyleTextFieldAndStepper },
             { "commit fires once",      ({ [row commit]; BOOL first = row.committed;
                                            [row commit]; first; }) },
+            { "focus loss does not add", ({
+                  NSMenuItem *it2 = ComposeRowItem(@"typed", rowDue, nil, NULL, 372);
+                  ComposeRowView *r2 = (ComposeRowView *)it2.view;
+                  r2.nameField.target != nil || r2.nameField.action != NULL
+                      ? NO : YES; }) },
+            { "return commits",          ({
+                  NSMenuItem *it3 = ComposeRowItem(@"typed", rowDue, nil, NULL, 372);
+                  ComposeRowView *r3 = (ComposeRowView *)it3.view;
+                  [r3 control:r3.nameField textView:nil
+                      doCommandBySelector:@selector(insertNewline:)];
+                  r3.committed && !r3.cancelled; }) },
+            { "escape cancels",          ({
+                  NSMenuItem *it4 = ComposeRowItem(@"typed", rowDue, nil, NULL, 372);
+                  ComposeRowView *r4 = (ComposeRowView *)it4.view;
+                  [r4 control:r4.nameField textView:nil
+                      doCommandBySelector:@selector(cancelOperation:)];
+                  r4.committed && r4.cancelled; }) },
             { "a draft is restored",    [row.nameField.stringValue
                   isEqualToString:@"draft"] },
             { "fields do not overlap",  NSMaxX(row.nameField.frame) <=
