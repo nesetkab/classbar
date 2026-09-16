@@ -95,6 +95,39 @@ int main(int argc, char **argv) {
             return 0;
         }
 
+        if (argc > 2 && strcmp(argv[1], "--composer") == 0) {
+            TaskComposer *c = [[TaskComposer alloc] init];
+            [c showRelativeTo:nil width:320];
+            [c.popover performClose:nil];
+            NSView *v = c.backdrop;
+            v.frame = NSMakeRect(0, 0, 320, v.fittingSize.height);
+            [v layoutSubtreeIfNeeded];
+            CGFloat pad = 14;
+            NSImage *sheet = [[NSImage alloc]
+                initWithSize:NSMakeSize(NSWidth(v.frame) + pad * 2,
+                                        NSHeight(v.frame) + pad * 2)];
+            [sheet lockFocus];
+            [[NSColor colorWithWhite:0.14 alpha:1.0] setFill];
+            NSRectFill(NSMakeRect(0, 0, sheet.size.width, sheet.size.height));
+            v.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
+            [NSGraphicsContext saveGraphicsState];
+            NSAffineTransform *t = [NSAffineTransform transform];
+            [t translateXBy:pad yBy:pad];
+            [t concat];
+            [v displayRectIgnoringOpacity:v.bounds
+                                inContext:[NSGraphicsContext currentContext]];
+            [NSGraphicsContext restoreGraphicsState];
+            [sheet unlockFocus];
+            NSBitmapImageRep *out = [[NSBitmapImageRep alloc]
+                initWithData:[sheet TIFFRepresentation]];
+            BOOL ok = [[out representationUsingType:NSBitmapImageFileTypePNG
+                                         properties:@{}] writeToFile:@(argv[2])
+                                                          atomically:YES];
+            printf("%s %s (%.0fx%.0f)\n", ok ? "wrote" : "failed", argv[2],
+                   NSWidth(v.frame), NSHeight(v.frame));
+            return ok ? 0 : 1;
+        }
+
         if (argc > 2 && strcmp(argv[1], "--rows") == 0) {
             NSArray *rows = @[ @[@"today 11:59p", @"Chapter 5: Problem Definition", @0, @0],
                                @[@"tmr 9:15a", @"Reading guide 3.8 - 3.12", @0, @0],

@@ -13,10 +13,8 @@
 
 - (NSTextField *)labelWithText:(NSString *)text {
     NSTextField *f = [NSTextField labelWithString:text];
-    f.alignment = NSTextAlignmentRight;
     f.font = [NSFont systemFontOfSize:12];
     f.textColor = [NSColor secondaryLabelColor];
-    [f.widthAnchor constraintEqualToConstant:34].active = YES;
     return f;
 }
 
@@ -25,6 +23,7 @@
     b.bezelStyle = NSBezelStyleRounded;
     b.controlSize = NSControlSizeSmall;
     b.font = [NSFont systemFontOfSize:12];
+    b.bezelColor = nil;
     return b;
 }
 
@@ -33,21 +32,27 @@
     p.datePickerElements = flags;
     p.datePickerStyle = NSDatePickerStyleTextFieldAndStepper;
     p.font = [NSFont systemFontOfSize:12];
+    p.bordered = NO;
+    p.drawsBackground = NO;
+    p.focusRingType = NSFocusRingTypeNone;
     [p.widthAnchor constraintEqualToConstant:w].active = YES;
     return p;
 }
 
 - (void)build {
     self.nameField = [NSTextField textFieldWithString:@""];
-    self.nameField.placeholderString = @"What do you need to do?";
-    self.nameField.font = [NSFont systemFontOfSize:13];
+    self.nameField.placeholderString = @"New task";
+    self.nameField.font = [NSFont systemFontOfSize:12];
+    self.nameField.bordered = NO;
+    self.nameField.drawsBackground = NO;
+    self.nameField.focusRingType = NSFocusRingTypeNone;
     self.nameField.target = self;
     self.nameField.action = @selector(add);
 
     self.dayPicker = [self pickerWithElements:NSDatePickerElementFlagYearMonthDay
-                                        width:112];
+                                        width:104];
     self.timePicker = [self pickerWithElements:NSDatePickerElementFlagHourMinute
-                                         width:86];
+                                         width:78];
 
     NSView *spacer = [[NSView alloc] init];
     [spacer setContentHuggingPriority:NSLayoutPriorityDefaultLow
@@ -72,35 +77,47 @@
         self.nameField, dueRow, buttons]];
     root.orientation = NSUserInterfaceLayoutOrientationVertical;
     root.alignment = NSLayoutAttributeLeading;
-    root.spacing = 12;
-    root.edgeInsets = NSEdgeInsetsMake(16, 16, 14, 16);
+    root.spacing = 10;
+    root.edgeInsets = NSEdgeInsetsMake(12, 14, 12, 14);
     root.translatesAutoresizingMaskIntoConstraints = NO;
 
-    NSView *content = [[NSView alloc] initWithFrame:NSMakeRect(0, 0, 330, 132)];
-    [content addSubview:root];
+    self.backdrop = [[NSVisualEffectView alloc]
+        initWithFrame:NSMakeRect(0, 0, 320, 112)];
+    self.backdrop.material = NSVisualEffectMaterialMenu;
+    self.backdrop.blendingMode = NSVisualEffectBlendingModeBehindWindow;
+    self.backdrop.state = NSVisualEffectStateActive;
+    [self.backdrop addSubview:root];
+
+    self.widthRule = [self.backdrop.widthAnchor constraintEqualToConstant:320];
     [NSLayoutConstraint activateConstraints:@[
-        [root.topAnchor constraintEqualToAnchor:content.topAnchor],
-        [root.bottomAnchor constraintEqualToAnchor:content.bottomAnchor],
-        [root.leadingAnchor constraintEqualToAnchor:content.leadingAnchor],
-        [root.trailingAnchor constraintEqualToAnchor:content.trailingAnchor],
+        self.widthRule,
+        [root.topAnchor constraintEqualToAnchor:self.backdrop.topAnchor],
+        [root.bottomAnchor constraintEqualToAnchor:self.backdrop.bottomAnchor],
+        [root.leadingAnchor constraintEqualToAnchor:self.backdrop.leadingAnchor],
+        [root.trailingAnchor constraintEqualToAnchor:self.backdrop.trailingAnchor],
         [self.nameField.widthAnchor constraintEqualToAnchor:root.widthAnchor
-                                                   constant:-32],
-        [dueRow.widthAnchor constraintEqualToAnchor:root.widthAnchor constant:-32],
-        [buttons.widthAnchor constraintEqualToAnchor:root.widthAnchor constant:-32],
+                                                   constant:-28],
+        [dueRow.widthAnchor constraintEqualToAnchor:root.widthAnchor constant:-28],
+        [buttons.widthAnchor constraintEqualToAnchor:root.widthAnchor constant:-28],
     ]];
 
     NSViewController *vc = [[NSViewController alloc] init];
-    vc.view = content;
+    vc.view = self.backdrop;
 
     self.popover = [[NSPopover alloc] init];
     self.popover.contentViewController = vc;
-    self.popover.contentSize = NSMakeSize(330, 132);
     self.popover.behavior = NSPopoverBehaviorTransient;
-    self.popover.animates = YES;
+    self.popover.animates = NO;
     self.popover.delegate = self;
 }
 
-- (void)showRelativeTo:(NSView *)anchor {
+- (void)showRelativeTo:(NSView *)anchor width:(CGFloat)width {
+    self.widthRule.constant = MAX(280.0, width);
+    [self.backdrop layoutSubtreeIfNeeded];
+    CGFloat height = self.backdrop.fittingSize.height;
+    if (height < 60) height = 112;
+    self.popover.contentSize = NSMakeSize(self.widthRule.constant, height);
+
     NSCalendar *cal = [NSCalendar currentCalendar];
     NSDateComponents *parts = [cal components:(NSCalendarUnitYear | NSCalendarUnitMonth |
                                                NSCalendarUnitDay)
@@ -112,6 +129,8 @@
     self.nameField.stringValue = @"";
     self.dayPicker.dateValue = tonight;
     self.timePicker.dateValue = tonight;
+
+    if (!anchor) return;
 
     [NSApp activateIgnoringOtherApps:YES];
     [self.popover showRelativeToRect:anchor.bounds ofView:anchor

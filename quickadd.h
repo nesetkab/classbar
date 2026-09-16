@@ -8,7 +8,9 @@
 @property (weak)   id target;
 @property (assign) SEL addedAction;
 @property (assign) BOOL adding;
-- (void)showRelativeTo:(NSView *)anchor;
+@property (strong) NSVisualEffectView *backdrop;
+@property (strong) NSLayoutConstraint *widthRule;
+- (void)showRelativeTo:(NSView *)anchor width:(CGFloat)width;
 - (void)add;
 - (void)cancel;
 - (NSDate *)chosenDue;

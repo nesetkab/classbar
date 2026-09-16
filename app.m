@@ -20,6 +20,7 @@
 @property (strong) NSMutableSet *sessionMarks;
 @property (strong) SettingsWindow *settings;
 @property (strong) TaskComposer *composer;
+@property (assign) CGFloat menuWidth;
 @property (copy)   NSString *link;
 @end
 
@@ -124,6 +125,7 @@ static const NSTimeInterval kStaleSeconds = 300;
     CGFloat cardWidth = MAX(292.0,
                             dueWidth + kDueColumnGap + ceil(nameMax) +
                             kDoneCircleWidth + 26.0);
+    self.menuWidth = cardWidth;
 
     NSArray *series = cb_series(self.schedule, ymd, mins, day, 2);
     {
@@ -238,7 +240,7 @@ static const NSTimeInterval kStaleSeconds = 300;
         self.composer = [[TaskComposer alloc] init];
         self.composer.target = self;
     }
-    [self.composer showRelativeTo:self.status.button];
+    [self.composer showRelativeTo:self.status.button width:self.menuWidth];
 }
 
 - (void)settingsSaved {
