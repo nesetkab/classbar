@@ -266,7 +266,7 @@ static const NSTimeInterval kStaleSeconds = 300;
     }
     if (!row) return;
 
-    self.draftName = row.nameField.stringValue;
+    self.draftName = row.nameField.string;
     NSDate *due = [row chosenDue];
     self.draftDue = picker ? CombineDayAndTime(picker.calendar.dateValue, due) : due;
 }
@@ -292,7 +292,7 @@ static const NSTimeInterval kStaleSeconds = 300;
 }
 
 - (void)toggleDayPicker:(ComposeRowView *)row {
-    self.draftName = row.nameField.stringValue;
+    self.draftName = row.nameField.string;
     self.draftDue = [row chosenDue];
     self.pickingDay = !self.pickingDay;
     [self rebuildSoon];
@@ -304,7 +304,7 @@ static const NSTimeInterval kStaleSeconds = 300;
 }
 
 - (void)commitTask:(ComposeRowView *)row {
-    NSString *name = row.cleanName.length ? row.cleanName : row.nameField.stringValue;
+    NSString *name = row.cleanName.length ? row.cleanName : row.nameField.string;
     if (!row.cancelled && [name stringByTrimmingCharactersInSet:
             [NSCharacterSet whitespaceAndNewlineCharacterSet]].length)
         AddTask(name, [row chosenDue]);

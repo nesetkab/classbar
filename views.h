@@ -20,11 +20,12 @@ extern const CGFloat kDoneCircleWidth;
 @property (strong) NSTimer *blinkTimer;
 @property (assign) BOOL blinkOn;
 @property (assign) BOOL holdsFocus;
+@property (copy)   NSString *placeholder;
 - (NSRect)caretRect;
 @end
 
-@interface ComposeRowView : NSView <NSTextFieldDelegate>
-@property (strong) NSTextField *nameField;
+@interface ComposeRowView : NSView <NSTextViewDelegate>
+@property (strong) MenuFieldEditor *nameField;
 @property (strong) NSTextField *dayChip;
 @property (strong) NSTextField *timeChip;
 @property (strong, nonatomic) NSDate *dayValue;

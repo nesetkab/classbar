@@ -748,22 +748,20 @@ int main(int argc, char **argv) {
                                                    nil, NULL, nil, NULL, 372);
                   ComposeRowView *r6 = (ComposeRowView *)it6.view;
                   [host.contentView addSubview:r6];
-                  BOOL editing = [r6.nameField currentEditor] != nil;
+                  BOOL editing = host.firstResponder == r6.nameField;
                   BOOL refused = ![host makeFirstResponder:nil];
                   [r6 commit];
                   BOOL freed = [host makeFirstResponder:nil];
                   editing && refused && freed; }) },
-            { "the editor owns the caret", ({
-                  NSTextView *ed = [(NSTextFieldCell *)row.nameField.cell
-                      fieldEditorForView:row.nameField];
-                  [ed isKindOfClass:[MenuFieldEditor class]] &&
-                      !ed.drawsBackground && ed.isFieldEditor; }) },
+            { "no text field behind the row", ({
+                  MenuFieldEditor *ed = row.nameField;
+                  ![ed.superview isKindOfClass:[NSTextField class]] &&
+                      !ed.drawsBackground &&
+                      ed.superview == row; }) },
             { "the caret follows the text", ({
-                  MenuFieldEditor *ed = (MenuFieldEditor *)
-                      [(NSTextFieldCell *)row.nameField.cell
-                          fieldEditorForView:row.nameField];
-                  ed.frame = NSMakeRect(0, 0, 200, 18);
-                  ed.font = [NSFont systemFontOfSize:12];
+                  NSMenuItem *it7 = ComposeRowItem(@"", rowDue,
+                                                   nil, NULL, nil, NULL, 372);
+                  MenuFieldEditor *ed = ((ComposeRowView *)it7.view).nameField;
                   [ed setString:@""];
                   CGFloat empty = NSMinX([ed caretRect]);
                   [ed setString:@"finish the lab report"];
@@ -797,23 +795,20 @@ int main(int argc, char **argv) {
             { "focus loss does not add", ({
                   NSMenuItem *it2 = ComposeRowItem(@"typed", rowDue, nil, NULL, nil, NULL, 372);
                   ComposeRowView *r2 = (ComposeRowView *)it2.view;
-                  r2.nameField.target != nil || r2.nameField.action != NULL
-                      ? NO : YES; }) },
+                  r2.nameField.delegate == (id<NSTextViewDelegate>)r2; }) },
             { "return commits",          ({
                   NSMenuItem *it3 = ComposeRowItem(@"typed", rowDue, nil, NULL, nil, NULL, 372);
                   ComposeRowView *r3 = (ComposeRowView *)it3.view;
-                  NSTextView *probe3 = [[NSTextView alloc] init];
-                  [r3 control:r3.nameField textView:probe3
+                  [r3 textView:r3.nameField
                       doCommandBySelector:@selector(insertNewline:)];
                   r3.committed && !r3.cancelled; }) },
             { "escape cancels",          ({
                   NSMenuItem *it4 = ComposeRowItem(@"typed", rowDue, nil, NULL, nil, NULL, 372);
                   ComposeRowView *r4 = (ComposeRowView *)it4.view;
-                  NSTextView *probe4 = [[NSTextView alloc] init];
-                  [r4 control:r4.nameField textView:probe4
+                  [r4 textView:r4.nameField
                       doCommandBySelector:@selector(cancelOperation:)];
                   r4.committed && r4.cancelled; }) },
-            { "a draft is restored",    [row.nameField.stringValue
+            { "a draft is restored",    [row.nameField.string
                   isEqualToString:@"draft"] },
             { "fields do not overlap",  NSMaxX(row.nameField.frame) <=
                   NSMinX(row.dayChip.frame) + 1 &&

@@ -218,6 +218,13 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 
 - (void)drawRect:(NSRect)dirty {
     [super drawRect:dirty];
+    if (!self.string.length && self.placeholder.length) {
+        NSPoint at = self.textContainerOrigin;
+        [self.placeholder drawAtPoint:at withAttributes:@{
+            NSFontAttributeName: self.font ?: [NSFont systemFontOfSize:12],
+            NSForegroundColorAttributeName: [NSColor tertiaryLabelColor]
+        }];
+    }
     if (!self.blinkOn || !self.isEditable) return;
     [(self.insertionPointColor ?: [NSColor labelColor]) setFill];
     NSRectFill([self caretRect]);
@@ -229,50 +236,27 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 
 @end
 
-@interface MenuFieldCell : NSTextFieldCell
-@property (strong) MenuFieldEditor *sharedEditor;
-@end
-
-@implementation MenuFieldCell
-
-- (NSTextView *)fieldEditorForView:(NSView *)controlView __unused {
-    if (!self.sharedEditor) {
-        self.sharedEditor = [[MenuFieldEditor alloc] initWithFrame:NSZeroRect];
-        self.sharedEditor.fieldEditor = YES;
-        self.sharedEditor.drawsBackground = NO;
-        self.sharedEditor.insertionPointColor = [NSColor labelColor];
-    }
-    return self.sharedEditor;
-}
-
-@end
-
-@interface MenuTextField : NSTextField
-@end
-
-@implementation MenuTextField
-
-+ (Class)cellClass {
-    return [MenuFieldCell class];
-}
-
-@end
-
 @implementation ComposeRowView
 
 - (instancetype)initWithFrame:(NSRect)frame {
     self = [super initWithFrame:frame];
     if (!self) return self;
 
-    self.nameField = [[MenuTextField alloc] initWithFrame:NSZeroRect];
+    self.nameField = [[MenuFieldEditor alloc] initWithFrame:NSMakeRect(0, 0, 200, 16)];
+    self.nameField.placeholder = @"New task";
     self.nameField.editable = YES;
     self.nameField.selectable = YES;
-    self.nameField.placeholderString = @"New task";
-    self.nameField.bezeled = NO;
-    self.nameField.bordered = NO;
+    self.nameField.richText = NO;
     self.nameField.drawsBackground = NO;
+    self.nameField.insertionPointColor = [NSColor labelColor];
     self.nameField.font = [NSFont systemFontOfSize:12];
+    self.nameField.textColor = [NSColor labelColor];
     self.nameField.focusRingType = NSFocusRingTypeNone;
+    self.nameField.verticallyResizable = NO;
+    self.nameField.horizontallyResizable = NO;
+    self.nameField.textContainerInset = NSZeroSize;
+    self.nameField.textContainer.lineFragmentPadding = 0;
+    self.nameField.textContainer.widthTracksTextView = YES;
     self.nameField.translatesAutoresizingMaskIntoConstraints = NO;
     self.nameField.delegate = self;
 
@@ -296,6 +280,7 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
     [NSLayoutConstraint activateConstraints:@[
         self.nameLeading,
         [self.nameField.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+        [self.nameField.heightAnchor constraintEqualToConstant:16],
         [self.dayChip.leadingAnchor
             constraintEqualToAnchor:self.nameField.trailingAnchor constant:10],
         [self.dayChip.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
@@ -344,27 +329,24 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 - (void)commit {
     if (self.committed) return;
     self.committed = YES;
-    [self editor].holdsFocus = NO;
+    self.nameField.holdsFocus = NO;
     self.nameField.delegate = nil;
     if (self.target && self.action)
         ((void (*)(id, SEL, id))objc_msgSend)(self.target, self.action, self);
 }
 
-- (void)controlTextDidChange:(NSNotification *)note __unused {
+- (void)textDidChange:(NSNotification *)note __unused {
     NSString *clean = nil;
-    NSDate *parsed = ParseDueFromText(self.nameField.stringValue,
+    NSDate *parsed = ParseDueFromText(self.nameField.string,
                                       self.typedBase ?: [NSDate date], &clean);
-    self.cleanName = parsed ? clean : self.nameField.stringValue;
+    self.cleanName = parsed ? clean : self.nameField.string;
     if (parsed) {
         self.dayValue = parsed;
         self.timeValue = parsed;
     }
 }
 
-- (BOOL)control:(NSControl *)control
-       textView:(NSTextView *)view
-       doCommandBySelector:(SEL)command {
-    (void)control;
+- (BOOL)textView:(NSTextView *)view doCommandBySelector:(SEL)command {
     (void)view;
     if (command == @selector(insertNewline:)) {
         [self commit];
@@ -378,19 +360,13 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
     return NO;
 }
 
-- (MenuFieldEditor *)editor {
-    NSText *editor = [self.nameField currentEditor];
-    return [editor isKindOfClass:[MenuFieldEditor class]]
-        ? (MenuFieldEditor *)editor : nil;
-}
-
 - (void)viewDidMoveToWindow {
     [super viewDidMoveToWindow];
     if (self.window) {
         [self.window makeFirstResponder:self.nameField];
-        [self editor].holdsFocus = YES;
+        self.nameField.holdsFocus = YES;
     } else {
-        [self editor].holdsFocus = NO;
+        self.nameField.holdsFocus = NO;
     }
 }
 
@@ -402,7 +378,7 @@ NSMenuItem *ComposeRowItem(NSString *name, NSDate *due,
     ComposeRowView *v = [[ComposeRowView alloc]
         initWithFrame:NSMakeRect(0, 0, width, 26)];
     v.autoresizingMask = NSViewWidthSizable;
-    v.nameField.stringValue = name ?: @"";
+    [v.nameField setString:name ?: @""];
     v.typedBase = [NSDate date];
     v.cleanName = name ?: @"";
     v.dayValue = due;
