@@ -154,7 +154,6 @@ int main(int argc, char **argv) {
                                                   nil, NULL, nil, NULL, w);
                 ComposeRowView *v = (ComposeRowView *)item.view;
                 v.appearance = [NSAppearance appearanceNamed:NSAppearanceNameDarkAqua];
-                v.caretOn = YES;
                 [v layoutSubtreeIfNeeded];
                 NSRect slot = NSMakeRect(pad,
                                          sheet.size.height - pad - (h + pad) * (i + 1),
@@ -740,14 +739,11 @@ int main(int argc, char **argv) {
                                         chosen.hour == 17 && chosen.minute == 30 },
             { "the day reads as a chip", row.dayChip.stringValue.length > 0 &&
                   [row.dayChip.stringValue containsString:@"/"] },
-            { "the caret follows the text", ({
-                  NSMenuItem *it5 = ComposeRowItem(@"", rowDue, nil, NULL, nil, NULL, 372);
-                  ComposeRowView *r5 = (ComposeRowView *)it5.view;
-                  [r5 layoutSubtreeIfNeeded];
-                  CGFloat empty = NSMinX([r5 caretRect]);
-                  r5.nameField.stringValue = @"finish the lab report";
-                  CGFloat typed = NSMinX([r5 caretRect]);
-                  typed > empty && NSHeight([r5 caretRect]) > 8; }) },
+            { "the editor draws a caret", ({
+                  NSTextView *ed = [(NSTextFieldCell *)row.nameField.cell
+                      fieldEditorForView:row.nameField];
+                  ed != nil && ed.shouldDrawInsertionPoint &&
+                      !ed.drawsBackground && ed.isFieldEditor; }) },
             { "day and time recombine", ({
                   NSCalendar *c2 = [NSCalendar currentCalendar];
                   NSDateComponents *dp = [[NSDateComponents alloc] init];

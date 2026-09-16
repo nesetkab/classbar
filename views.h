@@ -29,11 +29,8 @@ extern const CGFloat kDoneCircleWidth;
 @property (assign) BOOL committed;
 @property (assign) BOOL cancelled;
 @property (strong) NSLayoutConstraint *nameLeading;
-@property (strong) NSTimer *caretTimer;
-@property (assign) BOOL caretOn;
 @property (weak)   id target;
 @property (assign) SEL action;
-- (NSRect)caretRect;
 - (NSDate *)chosenDue;
 - (void)commit;
 @end

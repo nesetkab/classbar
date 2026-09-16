@@ -144,14 +144,57 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 
 @end
 
+@interface MenuFieldEditor : NSTextView
+@end
+
+@implementation MenuFieldEditor
+
+- (BOOL)shouldDrawInsertionPoint {
+    return self.isEditable;
+}
+
+@end
+
+@interface MenuFieldCell : NSTextFieldCell
+@property (strong) MenuFieldEditor *sharedEditor;
+@end
+
+@implementation MenuFieldCell
+
+- (NSTextView *)fieldEditorForView:(NSView *)controlView __unused {
+    if (!self.sharedEditor) {
+        self.sharedEditor = [[MenuFieldEditor alloc] initWithFrame:NSZeroRect];
+        self.sharedEditor.fieldEditor = YES;
+        self.sharedEditor.drawsBackground = NO;
+        self.sharedEditor.insertionPointColor = [NSColor labelColor];
+    }
+    return self.sharedEditor;
+}
+
+@end
+
+@interface MenuTextField : NSTextField
+@end
+
+@implementation MenuTextField
+
++ (Class)cellClass {
+    return [MenuFieldCell class];
+}
+
+@end
+
 @implementation ComposeRowView
 
 - (instancetype)initWithFrame:(NSRect)frame {
     self = [super initWithFrame:frame];
     if (!self) return self;
 
-    self.nameField = [NSTextField textFieldWithString:@""];
+    self.nameField = [[MenuTextField alloc] initWithFrame:NSZeroRect];
+    self.nameField.editable = YES;
+    self.nameField.selectable = YES;
     self.nameField.placeholderString = @"New task";
+    self.nameField.bezeled = NO;
     self.nameField.bordered = NO;
     self.nameField.drawsBackground = NO;
     self.nameField.font = [NSFont systemFontOfSize:12];
@@ -209,67 +252,6 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
     return NSInsetRect(self.dayChip.frame, -8, -3);
 }
 
-- (NSRect)rowRect {
-    return NSMakeRect(5, 1, NSWidth(self.bounds) - 10, NSHeight(self.bounds) - 2);
-}
-
-- (NSUInteger)insertionIndex {
-    NSText *editor = [self.window fieldEditor:NO forObject:self.nameField];
-    if (![editor isKindOfClass:[NSTextView class]] ||
-        editor.delegate != (id)self.nameField)
-        return self.nameField.stringValue.length;
-    return MIN(((NSTextView *)editor).selectedRange.location,
-               self.nameField.stringValue.length);
-}
-
-- (NSRect)caretRect {
-    NSString *typed = [self.nameField.stringValue
-        substringToIndex:[self insertionIndex]];
-    CGFloat width = [typed sizeWithAttributes:
-        @{ NSFontAttributeName: self.nameField.font }].width;
-    CGFloat height = ceil(self.nameField.font.ascender -
-                          self.nameField.font.descender);
-    return NSMakeRect(NSMinX(self.nameField.frame) + ceil(width) + 2,
-                      NSMidY(self.bounds) - height / 2, 1, height);
-}
-
-- (void)startCaret {
-    if (self.caretTimer) return;
-    self.caretOn = YES;
-    __weak ComposeRowView *me = self;
-    self.caretTimer = [NSTimer timerWithTimeInterval:0.53 repeats:YES
-                                               block:^(NSTimer *t __unused) {
-        me.caretOn = !me.caretOn;
-        [me setNeedsDisplayInRect:NSInsetRect([me caretRect], -2, -2)];
-    }];
-    [[NSRunLoop currentRunLoop] addTimer:self.caretTimer
-                                 forMode:NSRunLoopCommonModes];
-    [[NSRunLoop currentRunLoop] addTimer:self.caretTimer
-                                 forMode:NSEventTrackingRunLoopMode];
-}
-
-- (void)stopCaret {
-    [self.caretTimer invalidate];
-    self.caretTimer = nil;
-    self.caretOn = NO;
-}
-
-- (void)dealloc {
-    [self stopCaret];
-}
-
-- (void)drawRect:(NSRect)dirty __unused {
-    NSBezierPath *well = [NSBezierPath bezierPathWithRoundedRect:[self rowRect]
-                                                         xRadius:5 yRadius:5];
-    [[NSColor colorWithWhite:1.0 alpha:0.07] setFill];
-    [well fill];
-
-    if (self.caretOn) {
-        [[NSColor labelColor] setFill];
-        NSRectFill([self caretRect]);
-    }
-}
-
 - (void)mouseDown:(NSEvent *)e __unused {
 }
 
@@ -288,7 +270,6 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 - (void)commit {
     if (self.committed) return;
     self.committed = YES;
-    [self stopCaret];
     self.nameField.delegate = nil;
     if (self.target && self.action)
         ((void (*)(id, SEL, id))objc_msgSend)(self.target, self.action, self);
@@ -303,8 +284,6 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
         self.dayValue = parsed;
         self.timeValue = parsed;
     }
-    self.caretOn = YES;
-    self.needsDisplay = YES;
 }
 
 - (BOOL)control:(NSControl *)control
@@ -328,10 +307,7 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
     [super viewDidMoveToWindow];
     if (self.window) {
         [self.window makeFirstResponder:self.nameField];
-        [self startCaret];
-    } else {
-        [self stopCaret];
-    }
+        }
 }
 
 @end
