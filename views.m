@@ -223,12 +223,12 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
         self.nameLeading,
         [self.nameField.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
         [self.dayChip.leadingAnchor
-            constraintEqualToAnchor:self.nameField.trailingAnchor constant:12],
+            constraintEqualToAnchor:self.nameField.trailingAnchor constant:10],
         [self.dayChip.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
         [self.timeChip.leadingAnchor
-            constraintEqualToAnchor:self.dayChip.trailingAnchor constant:16],
+            constraintEqualToAnchor:self.dayChip.trailingAnchor constant:8],
         [self.timeChip.trailingAnchor constraintEqualToAnchor:self.trailingAnchor
-                                                     constant:-16],
+                                                     constant:-10],
         [self.timeChip.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
     ]];
     return self;
