@@ -680,35 +680,40 @@ int main(int argc, char **argv) {
         rowParts.year = 2026; rowParts.month = 9; rowParts.day = 22;
         rowParts.hour = 17; rowParts.minute = 30;
         NSDate *rowDue = [rowCal dateFromComponents:rowParts];
-        NSMenuItem *rowItem = ComposeRowItem(@"draft", rowDue, 78, nil, NULL, 372);
+        NSMenuItem *rowItem = ComposeRowItem(@"draft", rowDue, NO, nil, NULL, nil, NULL, 372);
         ComposeRowView *row = (ComposeRowView *)rowItem.view;
         [row layoutSubtreeIfNeeded];
         NSDateComponents *chosen = [rowCal components:(NSCalendarUnitYear |
             NSCalendarUnitMonth | NSCalendarUnitDay | NSCalendarUnitHour |
             NSCalendarUnitMinute) fromDate:[row chosenDue]];
         struct { const char *label; BOOL ok; } rowChecks[] = {
-            { "name, day and time",     row.nameField != nil && row.dayPicker != nil &&
+            { "name, day and time",     row.nameField != nil && row.dayChip != nil &&
                                         row.timePicker != nil },
             { "day and time combine",   chosen.month == 9 && chosen.day == 22 &&
                                         chosen.hour == 17 && chosen.minute == 30 },
-            { "pickers are editable",   row.dayPicker.datePickerStyle ==
-                  NSDatePickerStyleTextField && !row.dayPicker.isBezeled },
+            { "the day reads as a chip", row.dayChip.stringValue.length > 0 &&
+                  [row.dayChip.stringValue containsString:@"/"] },
+            { "a calendar row exists",  ({
+                  NSMenuItem *cal = CalendarRowItem(rowDue, nil, NULL, 372);
+                  CalendarRowView *cv = (CalendarRowView *)cal.view;
+                  cv.calendar != nil && cv.calendar.datePickerStyle ==
+                      NSDatePickerStyleClockAndCalendar; }) },
             { "commit fires once",      ({ [row commit]; BOOL first = row.committed;
                                            [row commit]; first; }) },
             { "focus loss does not add", ({
-                  NSMenuItem *it2 = ComposeRowItem(@"typed", rowDue, 78, nil, NULL, 372);
+                  NSMenuItem *it2 = ComposeRowItem(@"typed", rowDue, NO, nil, NULL, nil, NULL, 372);
                   ComposeRowView *r2 = (ComposeRowView *)it2.view;
                   r2.nameField.target != nil || r2.nameField.action != NULL
                       ? NO : YES; }) },
             { "return commits",          ({
-                  NSMenuItem *it3 = ComposeRowItem(@"typed", rowDue, 78, nil, NULL, 372);
+                  NSMenuItem *it3 = ComposeRowItem(@"typed", rowDue, NO, nil, NULL, nil, NULL, 372);
                   ComposeRowView *r3 = (ComposeRowView *)it3.view;
                   NSTextView *probe3 = [[NSTextView alloc] init];
                   [r3 control:r3.nameField textView:probe3
                       doCommandBySelector:@selector(insertNewline:)];
                   r3.committed && !r3.cancelled; }) },
             { "escape cancels",          ({
-                  NSMenuItem *it4 = ComposeRowItem(@"typed", rowDue, 78, nil, NULL, 372);
+                  NSMenuItem *it4 = ComposeRowItem(@"typed", rowDue, NO, nil, NULL, nil, NULL, 372);
                   ComposeRowView *r4 = (ComposeRowView *)it4.view;
                   NSTextView *probe4 = [[NSTextView alloc] init];
                   [r4 control:r4.nameField textView:probe4
@@ -717,8 +722,8 @@ int main(int argc, char **argv) {
             { "a draft is restored",    [row.nameField.stringValue
                   isEqualToString:@"draft"] },
             { "fields do not overlap",  NSMaxX(row.nameField.frame) <=
-                  NSMinX(row.dayPicker.frame) + 1 &&
-                  NSMaxX(row.dayPicker.frame) <= NSMinX(row.timePicker.frame) + 1 },
+                  NSMinX(row.dayChip.frame) + 1 &&
+                  NSMaxX(row.dayChip.frame) <= NSMinX(row.timePicker.frame) + 1 },
         };
         for (size_t i = 0; i < sizeof(rowChecks) / sizeof(rowChecks[0]); i++) {
             if (!rowChecks[i].ok) fails++;

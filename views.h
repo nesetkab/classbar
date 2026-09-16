@@ -18,8 +18,12 @@ extern const CGFloat kDoneCircleWidth;
 
 @interface ComposeRowView : NSView <NSTextFieldDelegate>
 @property (strong) NSTextField *nameField;
-@property (strong) NSDatePicker *dayPicker;
+@property (strong) NSTextField *dayChip;
+@property (strong, nonatomic) NSDate *dayValue;
 @property (strong) NSDatePicker *timePicker;
+@property (weak)   id chipTarget;
+@property (assign) SEL chipAction;
+@property (assign) BOOL dayOpen;
 @property (assign) BOOL committed;
 @property (assign) BOOL cancelled;
 @property (strong) NSLayoutConstraint *nameLeading;
@@ -27,6 +31,12 @@ extern const CGFloat kDoneCircleWidth;
 @property (assign) SEL action;
 - (NSDate *)chosenDue;
 - (void)commit;
+@end
+
+@interface CalendarRowView : NSView
+@property (strong) NSDatePicker *calendar;
+@property (weak)   id target;
+@property (assign) SEL action;
 @end
 
 @interface AssignmentView : HoverTipView
@@ -64,8 +74,10 @@ NSMenuItem *AssignmentItem(NSDictionary *item, NSString *due, NSString *name,
                            NSString *link, NSString *tip, BOOL late, BOOL done,
                            CGFloat dueWidth, CGFloat width,
                            id target, SEL toggleAction);
-NSMenuItem *ComposeRowItem(NSString *name, NSDate *due, CGFloat dueWidth,
-                           id target, SEL action, CGFloat width);
+NSMenuItem *ComposeRowItem(NSString *name, NSDate *due, BOOL dayOpen,
+                           id target, SEL action,
+                           id chipTarget, SEL chipAction, CGFloat width);
+NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width);
 NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *room,
                      NSString *link, NSString *zoom, NSString *tip,
                      NSColor *bg, CGFloat width);

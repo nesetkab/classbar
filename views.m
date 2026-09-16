@@ -159,22 +159,34 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
     self.nameField.translatesAutoresizingMaskIntoConstraints = NO;
     self.nameField.delegate = self;
 
-    self.dayPicker = [self pickerWith:NSDatePickerElementFlagYearMonthDay];
-    self.timePicker = [self pickerWith:NSDatePickerElementFlagHourMinute];
+    self.dayChip = [NSTextField labelWithString:@""];
+    self.dayChip.font = [NSFont systemFontOfSize:11];
+    self.dayChip.alignment = NSTextAlignmentCenter;
+    self.dayChip.translatesAutoresizingMaskIntoConstraints = NO;
+
+    self.timePicker = [[NSDatePicker alloc] init];
+    self.timePicker.datePickerElements = NSDatePickerElementFlagHourMinute;
+    self.timePicker.datePickerStyle = NSDatePickerStyleTextField;
+    self.timePicker.font = [NSFont systemFontOfSize:11];
+    self.timePicker.bordered = NO;
+    self.timePicker.drawsBackground = NO;
+    self.timePicker.translatesAutoresizingMaskIntoConstraints = NO;
+    [self.timePicker setContentHuggingPriority:NSLayoutPriorityRequired
+                                forOrientation:NSLayoutConstraintOrientationHorizontal];
 
     [self addSubview:self.nameField];
-    [self addSubview:self.dayPicker];
+    [self addSubview:self.dayChip];
     [self addSubview:self.timePicker];
     self.nameLeading = [self.nameField.leadingAnchor
         constraintEqualToAnchor:self.leadingAnchor constant:14];
     [NSLayoutConstraint activateConstraints:@[
         self.nameLeading,
         [self.nameField.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
-        [self.dayPicker.leadingAnchor
-            constraintEqualToAnchor:self.nameField.trailingAnchor constant:10],
-        [self.dayPicker.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+        [self.dayChip.leadingAnchor
+            constraintEqualToAnchor:self.nameField.trailingAnchor constant:12],
+        [self.dayChip.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
         [self.timePicker.leadingAnchor
-            constraintEqualToAnchor:self.dayPicker.trailingAnchor constant:8],
+            constraintEqualToAnchor:self.dayChip.trailingAnchor constant:14],
         [self.timePicker.trailingAnchor constraintEqualToAnchor:self.trailingAnchor
                                                        constant:-14],
         [self.timePicker.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
@@ -182,40 +194,52 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
     return self;
 }
 
-- (NSDatePicker *)pickerWith:(NSDatePickerElementFlags)flags {
-    NSDatePicker *p = [[NSDatePicker alloc] init];
-    p.datePickerElements = flags;
-    p.datePickerStyle = NSDatePickerStyleTextField;
-    p.font = [NSFont systemFontOfSize:11];
-    p.bordered = NO;
-    p.drawsBackground = NO;
-    p.translatesAutoresizingMaskIntoConstraints = NO;
-    [p setContentHuggingPriority:NSLayoutPriorityRequired
-                  forOrientation:NSLayoutConstraintOrientationHorizontal];
-    return p;
+- (void)setDayValue:(NSDate *)day {
+    _dayValue = day;
+    NSDateFormatter *f = [[NSDateFormatter alloc] init];
+    f.dateFormat = @"EEE M/d";
+    self.dayChip.stringValue = day ? [f stringFromDate:day] : @"";
+}
+
+- (NSRect)dayChipRect {
+    return NSInsetRect(self.dayChip.frame, -8, -3);
+}
+
+- (void)mouseDown:(NSEvent *)e __unused {
+}
+
+- (void)mouseUp:(NSEvent *)e {
+    NSPoint pt = [self convertPoint:e.locationInWindow fromView:nil];
+    if (!NSPointInRect(pt, [self dayChipRect])) return;
+    if (self.chipTarget && self.chipAction)
+        ((void (*)(id, SEL, id))objc_msgSend)(self.chipTarget, self.chipAction, self);
 }
 
 - (NSDate *)chosenDue {
     NSCalendar *cal = [NSCalendar currentCalendar];
     NSDateComponents *day = [cal components:(NSCalendarUnitYear | NSCalendarUnitMonth |
                                              NSCalendarUnitDay)
-                                   fromDate:self.dayPicker.dateValue];
+                                   fromDate:self.dayValue ?: [NSDate date]];
     NSDateComponents *clock = [cal components:(NSCalendarUnitHour | NSCalendarUnitMinute)
                                      fromDate:self.timePicker.dateValue];
     day.hour = clock.hour;
     day.minute = clock.minute;
     day.second = 0;
-    return [cal dateFromComponents:day] ?: self.dayPicker.dateValue;
+    return [cal dateFromComponents:day] ?: (self.dayValue ?: [NSDate date]);
 }
 
 - (void)drawRect:(NSRect)dirty __unused {
-    for (NSView *field in @[self.dayPicker, self.timePicker]) {
-        if (NSWidth(field.frame) <= 0) continue;
-        NSRect chip = NSInsetRect(field.frame, -6, -3);
-        NSBezierPath *p = [NSBezierPath bezierPathWithRoundedRect:chip
-                                                          xRadius:5 yRadius:5];
-        [[NSColor colorWithWhite:1.0 alpha:0.08] setFill];
-        [p fill];
+    NSRect chip = [self dayChipRect];
+    NSBezierPath *p = [NSBezierPath bezierPathWithRoundedRect:chip xRadius:5 yRadius:5];
+    [[NSColor colorWithWhite:1.0 alpha:self.dayOpen ? 0.20 : 0.09] setFill];
+    [p fill];
+
+    if (NSWidth(self.timePicker.frame) > 0) {
+        NSRect t = NSInsetRect(self.timePicker.frame, -6, -3);
+        NSBezierPath *tp = [NSBezierPath bezierPathWithRoundedRect:t
+                                                           xRadius:5 yRadius:5];
+        [[NSColor colorWithWhite:1.0 alpha:0.09] setFill];
+        [tp fill];
     }
 }
 
@@ -251,15 +275,60 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 
 @end
 
-NSMenuItem *ComposeRowItem(NSString *name, NSDate *due, CGFloat dueWidth,
-                           id target, SEL action, CGFloat width) {
+NSMenuItem *ComposeRowItem(NSString *name, NSDate *due, BOOL dayOpen,
+                           id target, SEL action,
+                           id chipTarget, SEL chipAction, CGFloat width) {
     ComposeRowView *v = [[ComposeRowView alloc]
-        initWithFrame:NSMakeRect(0, 0, width, 24)];
+        initWithFrame:NSMakeRect(0, 0, width, 26)];
     v.autoresizingMask = NSViewWidthSizable;
-    (void)dueWidth;
     v.nameField.stringValue = name ?: @"";
-    v.dayPicker.dateValue = due;
+    v.dayValue = due;
     v.timePicker.dateValue = due;
+    v.dayOpen = dayOpen;
+    v.target = target;
+    v.action = action;
+    v.chipTarget = chipTarget;
+    v.chipAction = chipAction;
+    NSMenuItem *i = [[NSMenuItem alloc] init];
+    i.view = v;
+    return i;
+}
+
+@implementation CalendarRowView
+
+- (instancetype)initWithFrame:(NSRect)frame {
+    self = [super initWithFrame:frame];
+    if (!self) return self;
+
+    self.calendar = [[NSDatePicker alloc] init];
+    self.calendar.datePickerStyle = NSDatePickerStyleClockAndCalendar;
+    self.calendar.datePickerElements = NSDatePickerElementFlagYearMonthDay;
+    self.calendar.bordered = NO;
+    self.calendar.drawsBackground = NO;
+    self.calendar.translatesAutoresizingMaskIntoConstraints = NO;
+    self.calendar.target = self;
+    self.calendar.action = @selector(pick);
+
+    [self addSubview:self.calendar];
+    [NSLayoutConstraint activateConstraints:@[
+        [self.calendar.centerXAnchor constraintEqualToAnchor:self.centerXAnchor],
+        [self.calendar.centerYAnchor constraintEqualToAnchor:self.centerYAnchor],
+    ]];
+    return self;
+}
+
+- (void)pick {
+    if (self.target && self.action)
+        ((void (*)(id, SEL, id))objc_msgSend)(self.target, self.action, self);
+}
+
+@end
+
+NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
+    CalendarRowView *v = [[CalendarRowView alloc]
+        initWithFrame:NSMakeRect(0, 0, width, 148)];
+    v.autoresizingMask = NSViewWidthSizable;
+    v.calendar.dateValue = due ?: [NSDate date];
     v.target = target;
     v.action = action;
     NSMenuItem *i = [[NSMenuItem alloc] init];

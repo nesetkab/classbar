@@ -19,6 +19,7 @@
 @property (strong) NSMutableSet *sessionMarks;
 @property (strong) SettingsWindow *settings;
 @property (assign) BOOL composing;
+@property (assign) BOOL pickingDay;
 @property (copy)   NSString *draftName;
 @property (strong) NSDate *draftDue;
 @property (assign) CGFloat menuWidth;
@@ -183,8 +184,12 @@ static const NSTimeInterval kStaleSeconds = 300;
             self.draftDue = [cal2 dateFromComponents:parts] ?: now;
         }
         [menu addItem:ComposeRowItem(self.draftName ?: @"", self.draftDue,
-                                     dueWidth, self, @selector(commitTask:),
-                                     cardWidth)];
+                                     self.pickingDay, self,
+                                     @selector(commitTask:), self,
+                                     @selector(toggleDayPicker:), cardWidth)];
+        if (self.pickingDay)
+            [menu addItem:CalendarRowItem(self.draftDue, self,
+                                          @selector(dayPicked:), cardWidth)];
     }
 
     FooterView *fv = [[FooterView alloc] initWithFrame:NSMakeRect(0, 0, cardWidth, 26)];
@@ -277,7 +282,29 @@ static const NSTimeInterval kStaleSeconds = 300;
 
 - (void)openQuickAdd {
     self.composing = !self.composing;
-    if (!self.composing) [self clearDraft];
+    if (!self.composing) { self.pickingDay = NO; [self clearDraft]; }
+    [self rebuildSoon];
+}
+
+- (void)toggleDayPicker:(ComposeRowView *)row {
+    self.draftName = row.nameField.stringValue;
+    self.draftDue = [row chosenDue];
+    self.pickingDay = !self.pickingDay;
+    [self rebuildSoon];
+}
+
+- (void)dayPicked:(CalendarRowView *)row {
+    NSCalendar *cal = [NSCalendar currentCalendar];
+    NSDateComponents *day = [cal components:(NSCalendarUnitYear | NSCalendarUnitMonth |
+                                             NSCalendarUnitDay)
+                                   fromDate:row.calendar.dateValue];
+    NSDateComponents *clock = [cal components:(NSCalendarUnitHour |
+                                               NSCalendarUnitMinute)
+                                     fromDate:self.draftDue ?: [NSDate date]];
+    day.hour = clock.hour;
+    day.minute = clock.minute;
+    self.draftDue = [cal dateFromComponents:day] ?: self.draftDue;
+    self.pickingDay = NO;
     [self rebuildSoon];
 }
 
@@ -287,6 +314,7 @@ static const NSTimeInterval kStaleSeconds = 300;
             [NSCharacterSet whitespaceAndNewlineCharacterSet]].length)
         AddTask(name, [row chosenDue]);
     self.composing = NO;
+    self.pickingDay = NO;
     [self clearDraft];
     [self rebuildSoon];
 }
@@ -405,6 +433,7 @@ static const NSTimeInterval kStaleSeconds = 300;
 - (void)menuDidClose:(NSMenu *)menu __unused {
     self.menuOpen = NO;
     self.composing = NO;
+    self.pickingDay = NO;
     [self clearDraft];
     [self.sessionMarks removeAllObjects];
     TipHide();
