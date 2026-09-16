@@ -225,10 +225,12 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 
 @end
 
-NSMenuItem *ComposeRowItem(NSDate *due, id target, SEL action, CGFloat width) {
+NSMenuItem *ComposeRowItem(NSString *name, NSDate *due, id target, SEL action,
+                           CGFloat width) {
     ComposeRowView *v = [[ComposeRowView alloc]
         initWithFrame:NSMakeRect(0, 0, width, 24)];
     v.autoresizingMask = NSViewWidthSizable;
+    v.nameField.stringValue = name ?: @"";
     v.dayPicker.dateValue = due;
     v.timePicker.dateValue = due;
     v.target = target;

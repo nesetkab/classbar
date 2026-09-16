@@ -657,7 +657,7 @@ int main(int argc, char **argv) {
         rowParts.year = 2026; rowParts.month = 9; rowParts.day = 22;
         rowParts.hour = 17; rowParts.minute = 30;
         NSDate *rowDue = [rowCal dateFromComponents:rowParts];
-        NSMenuItem *rowItem = ComposeRowItem(rowDue, nil, NULL, 372);
+        NSMenuItem *rowItem = ComposeRowItem(@"draft", rowDue, nil, NULL, 372);
         ComposeRowView *row = (ComposeRowView *)rowItem.view;
         [row layoutSubtreeIfNeeded];
         NSDateComponents *chosen = [rowCal components:(NSCalendarUnitYear |
@@ -672,6 +672,8 @@ int main(int argc, char **argv) {
                   NSDatePickerStyleTextFieldAndStepper },
             { "commit fires once",      ({ [row commit]; BOOL first = row.committed;
                                            [row commit]; first; }) },
+            { "a draft is restored",    [row.nameField.stringValue
+                  isEqualToString:@"draft"] },
             { "fields do not overlap",  NSMaxX(row.nameField.frame) <=
                   NSMinX(row.dayPicker.frame) + 1 &&
                   NSMaxX(row.dayPicker.frame) <= NSMinX(row.timePicker.frame) + 1 },

@@ -62,7 +62,8 @@ NSMenuItem *AssignmentItem(NSDictionary *item, NSString *due, NSString *name,
                            NSString *link, NSString *tip, BOOL late, BOOL done,
                            CGFloat dueWidth, CGFloat width,
                            id target, SEL toggleAction);
-NSMenuItem *ComposeRowItem(NSDate *due, id target, SEL action, CGFloat width);
+NSMenuItem *ComposeRowItem(NSString *name, NSDate *due, id target,
+                           SEL action, CGFloat width);
 NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *room,
                      NSString *link, NSString *zoom, NSString *tip,
                      NSColor *bg, CGFloat width);

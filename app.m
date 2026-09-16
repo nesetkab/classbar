@@ -19,6 +19,8 @@
 @property (strong) NSMutableSet *sessionMarks;
 @property (strong) SettingsWindow *settings;
 @property (assign) BOOL composing;
+@property (copy)   NSString *draftName;
+@property (strong) NSDate *draftDue;
 @property (assign) CGFloat menuWidth;
 @property (copy)   NSString *link;
 @end
@@ -56,6 +58,7 @@ static const NSTimeInterval kStaleSeconds = 300;
 }
 
 - (void)menuNeedsUpdate:(NSMenu *)menu {
+    [self keepDraftFrom:menu];
     [menu removeAllItems];
     [self reloadScheduleIfChanged];
 
@@ -171,12 +174,15 @@ static const NSTimeInterval kStaleSeconds = 300;
     }
 
     if (self.composing) {
-        NSCalendar *cal2 = [NSCalendar currentCalendar];
-        NSDateComponents *parts = [cal2 components:(NSCalendarUnitYear |
-            NSCalendarUnitMonth | NSCalendarUnitDay) fromDate:now];
-        parts.hour = 23;
-        parts.minute = 59;
-        [menu addItem:ComposeRowItem([cal2 dateFromComponents:parts] ?: now,
+        if (!self.draftDue) {
+            NSCalendar *cal2 = [NSCalendar currentCalendar];
+            NSDateComponents *parts = [cal2 components:(NSCalendarUnitYear |
+                NSCalendarUnitMonth | NSCalendarUnitDay) fromDate:now];
+            parts.hour = 23;
+            parts.minute = 59;
+            self.draftDue = [cal2 dateFromComponents:parts] ?: now;
+        }
+        [menu addItem:ComposeRowItem(self.draftName ?: @"", self.draftDue,
                                      self, @selector(commitTask:), cardWidth)];
     }
 
@@ -244,27 +250,44 @@ static const NSTimeInterval kStaleSeconds = 300;
     [self.settings show];
 }
 
-- (void)openQuickAdd {
-    self.composing = !self.composing;
-    NSMenu *m = self.liveMenu;
-    if (m) [self menuNeedsUpdate:m];
+- (void)keepDraftFrom:(NSMenu *)menu {
+    for (NSMenuItem *item in menu.itemArray) {
+        if (![item.view isKindOfClass:[ComposeRowView class]]) continue;
+        ComposeRowView *row = (ComposeRowView *)item.view;
+        self.draftName = row.nameField.stringValue;
+        self.draftDue = [row chosenDue];
+        return;
+    }
 }
 
-- (void)commitTask:(ComposeRowView *)row {
-    NSString *name = row.nameField.stringValue;
-    if (![name stringByTrimmingCharactersInSet:
-            [NSCharacterSet whitespaceAndNewlineCharacterSet]].length) {
-        self.composing = NO;
-    } else {
-        AddTask(name, [row chosenDue]);
-        self.composing = NO;
-    }
+- (void)clearDraft {
+    self.draftName = nil;
+    self.draftDue = nil;
+}
+
+- (void)rebuildSoon {
     __weak ClassBar *weak = self;
     dispatch_async(dispatch_get_main_queue(), ^{
         ClassBar *me = weak;
         NSMenu *m = me.liveMenu;
         if (me.menuOpen && m) [me menuNeedsUpdate:m];
     });
+}
+
+- (void)openQuickAdd {
+    self.composing = !self.composing;
+    if (!self.composing) [self clearDraft];
+    [self rebuildSoon];
+}
+
+- (void)commitTask:(ComposeRowView *)row {
+    NSString *name = row.nameField.stringValue;
+    if ([name stringByTrimmingCharactersInSet:
+            [NSCharacterSet whitespaceAndNewlineCharacterSet]].length)
+        AddTask(name, [row chosenDue]);
+    self.composing = NO;
+    [self clearDraft];
+    [self rebuildSoon];
 }
 
 - (void)settingsSaved {
@@ -328,7 +351,7 @@ static const NSTimeInterval kStaleSeconds = 300;
     }
     BOOL changed = !self.cachedItems || ![items isEqualToArray:self.cachedItems];
     NSMenu *m = self.liveMenu;
-    if (changed && self.menuOpen && m) [self menuNeedsUpdate:m];
+    if (changed && self.menuOpen && !self.composing && m) [self menuNeedsUpdate:m];
     [self setFooterStatus:@"Updated"];
 }
 
@@ -381,6 +404,7 @@ static const NSTimeInterval kStaleSeconds = 300;
 - (void)menuDidClose:(NSMenu *)menu __unused {
     self.menuOpen = NO;
     self.composing = NO;
+    [self clearDraft];
     [self.sessionMarks removeAllObjects];
     TipHide();
     [self refreshIfOlderThan:kRefreshFloorSeconds];
