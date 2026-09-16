@@ -144,13 +144,86 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 
 @end
 
-@interface MenuFieldEditor : NSTextView
-@end
-
 @implementation MenuFieldEditor
 
-- (BOOL)shouldDrawInsertionPoint {
-    return self.isEditable;
+- (NSRect)caretRect {
+    NSLayoutManager *lm = self.layoutManager;
+    NSTextContainer *tc = self.textContainer;
+    [lm ensureLayoutForTextContainer:tc];
+
+    NSUInteger loc = MIN(self.selectedRange.location, self.string.length);
+    NSUInteger glyph = [lm glyphIndexForCharacterAtIndex:loc];
+    NSRect before = glyph ? [lm boundingRectForGlyphRange:NSMakeRange(0, glyph)
+                                          inTextContainer:tc]
+                          : NSZeroRect;
+    NSFont *font = self.font ?: [NSFont systemFontOfSize:12];
+    CGFloat height = NSHeight(before) > 0 ? NSHeight(before)
+                                          : ceil(font.ascender - font.descender);
+    NSPoint origin = self.textContainerOrigin;
+    return NSMakeRect(origin.x + NSMaxX(before), origin.y + NSMinY(before), 1, height);
+}
+
+- (void)relightCaret {
+    self.blinkOn = YES;
+    self.needsDisplay = YES;
+}
+
+- (void)startBlink {
+    if (self.blinkTimer) return;
+    __weak MenuFieldEditor *me = self;
+    self.blinkTimer = [NSTimer timerWithTimeInterval:0.53 repeats:YES
+                                               block:^(NSTimer *t __unused) {
+        me.blinkOn = !me.blinkOn;
+        [me setNeedsDisplayInRect:NSInsetRect([me caretRect], -2, -2)];
+    }];
+    for (NSString *mode in @[NSRunLoopCommonModes, NSEventTrackingRunLoopMode])
+        [[NSRunLoop currentRunLoop] addTimer:self.blinkTimer forMode:mode];
+    [self relightCaret];
+}
+
+- (void)stopBlink {
+    [self.blinkTimer invalidate];
+    self.blinkTimer = nil;
+    self.blinkOn = NO;
+}
+
+- (BOOL)becomeFirstResponder {
+    BOOL ok = [super becomeFirstResponder];
+    if (ok) [self startBlink];
+    return ok;
+}
+
+- (BOOL)resignFirstResponder {
+    [self stopBlink];
+    return [super resignFirstResponder];
+}
+
+- (void)viewDidMoveToWindow {
+    [super viewDidMoveToWindow];
+    if (!self.window) [self stopBlink];
+}
+
+- (void)didChangeText {
+    [super didChangeText];
+    [self relightCaret];
+}
+
+- (void)setSelectedRanges:(NSArray<NSValue *> *)ranges
+                 affinity:(NSSelectionAffinity)affinity
+           stillSelecting:(BOOL)selecting {
+    [super setSelectedRanges:ranges affinity:affinity stillSelecting:selecting];
+    [self relightCaret];
+}
+
+- (void)drawRect:(NSRect)dirty {
+    [super drawRect:dirty];
+    if (!self.blinkOn || !self.isEditable) return;
+    [(self.insertionPointColor ?: [NSColor labelColor]) setFill];
+    NSRectFill([self caretRect]);
+}
+
+- (void)dealloc {
+    [self stopBlink];
 }
 
 @end

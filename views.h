@@ -16,6 +16,12 @@ extern const CGFloat kDoneCircleWidth;
 @interface InfoTipView : HoverTipView
 @end
 
+@interface MenuFieldEditor : NSTextView
+@property (strong) NSTimer *blinkTimer;
+@property (assign) BOOL blinkOn;
+- (NSRect)caretRect;
+@end
+
 @interface ComposeRowView : NSView <NSTextFieldDelegate>
 @property (strong) NSTextField *nameField;
 @property (strong) NSTextField *dayChip;

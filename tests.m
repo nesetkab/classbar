@@ -739,11 +739,26 @@ int main(int argc, char **argv) {
                                         chosen.hour == 17 && chosen.minute == 30 },
             { "the day reads as a chip", row.dayChip.stringValue.length > 0 &&
                   [row.dayChip.stringValue containsString:@"/"] },
-            { "the editor draws a caret", ({
+            { "the editor owns the caret", ({
                   NSTextView *ed = [(NSTextFieldCell *)row.nameField.cell
                       fieldEditorForView:row.nameField];
-                  ed != nil && ed.shouldDrawInsertionPoint &&
+                  [ed isKindOfClass:[MenuFieldEditor class]] &&
                       !ed.drawsBackground && ed.isFieldEditor; }) },
+            { "the caret follows the text", ({
+                  MenuFieldEditor *ed = (MenuFieldEditor *)
+                      [(NSTextFieldCell *)row.nameField.cell
+                          fieldEditorForView:row.nameField];
+                  ed.frame = NSMakeRect(0, 0, 200, 18);
+                  ed.font = [NSFont systemFontOfSize:12];
+                  [ed setString:@""];
+                  CGFloat empty = NSMinX([ed caretRect]);
+                  [ed setString:@"finish the lab report"];
+                  [ed setSelectedRange:NSMakeRange(ed.string.length, 0)];
+                  CGFloat end = NSMinX([ed caretRect]);
+                  [ed setSelectedRange:NSMakeRange(6, 0)];
+                  CGFloat middle = NSMinX([ed caretRect]);
+                  end > middle && middle > empty &&
+                      NSHeight([ed caretRect]) > 8; }) },
             { "day and time recombine", ({
                   NSCalendar *c2 = [NSCalendar currentCalendar];
                   NSDateComponents *dp = [[NSDateComponents alloc] init];
