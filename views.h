@@ -24,7 +24,6 @@ extern const CGFloat kDoneCircleWidth;
 @property (strong, nonatomic) NSDate *timeValue;
 @property (weak)   id chipTarget;
 @property (assign) SEL dayAction;
-@property (assign) BOOL dayOpen;
 @property (copy)   NSString *cleanName;
 @property (strong) NSDate *typedBase;
 @property (assign) BOOL committed;
@@ -77,7 +76,7 @@ NSMenuItem *AssignmentItem(NSDictionary *item, NSString *due, NSString *name,
                            NSString *link, NSString *tip, BOOL late, BOOL done,
                            CGFloat dueWidth, CGFloat width,
                            id target, SEL toggleAction);
-NSMenuItem *ComposeRowItem(NSString *name, NSDate *due, BOOL dayOpen,
+NSMenuItem *ComposeRowItem(NSString *name, NSDate *due,
                            id target, SEL action, id chipTarget,
                            SEL dayAction, CGFloat width);
 NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width);

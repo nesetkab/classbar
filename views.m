@@ -162,11 +162,13 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
     self.dayChip = [NSTextField labelWithString:@""];
     self.dayChip.font = [NSFont systemFontOfSize:11];
     self.dayChip.alignment = NSTextAlignmentCenter;
+    self.dayChip.textColor = [NSColor labelColor];
     self.dayChip.translatesAutoresizingMaskIntoConstraints = NO;
 
     self.timeChip = [NSTextField labelWithString:@""];
     self.timeChip.font = [NSFont systemFontOfSize:11];
     self.timeChip.alignment = NSTextAlignmentCenter;
+    self.timeChip.textColor = [NSColor secondaryLabelColor];
     self.timeChip.translatesAutoresizingMaskIntoConstraints = NO;
 
     [self addSubview:self.nameField];
@@ -207,10 +209,6 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
     return NSInsetRect(self.dayChip.frame, -8, -3);
 }
 
-- (NSRect)timeChipRect {
-    return NSInsetRect(self.timeChip.frame, -8, -3);
-}
-
 - (void)mouseDown:(NSEvent *)e __unused {
 }
 
@@ -224,17 +222,6 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 - (NSDate *)chosenDue {
     return CombineDayAndTime(self.dayValue ?: [NSDate date],
                              self.timeValue ?: [NSDate date]);
-}
-
-- (void)drawChip:(NSRect)rect open:(BOOL)open {
-    NSBezierPath *p = [NSBezierPath bezierPathWithRoundedRect:rect xRadius:5 yRadius:5];
-    [[NSColor colorWithWhite:1.0 alpha:open ? 0.22 : 0.09] setFill];
-    [p fill];
-}
-
-- (void)drawRect:(NSRect)dirty __unused {
-    [self drawChip:[self dayChipRect] open:self.dayOpen];
-    [self drawChip:[self timeChipRect] open:NO];
 }
 
 - (void)commit {
@@ -281,7 +268,7 @@ static void TipShowNear(NSString *text, NSRect anchor, BOOL preferRight) {
 
 @end
 
-NSMenuItem *ComposeRowItem(NSString *name, NSDate *due, BOOL dayOpen,
+NSMenuItem *ComposeRowItem(NSString *name, NSDate *due,
                            id target, SEL action, id chipTarget,
                            SEL dayAction, CGFloat width) {
     ComposeRowView *v = [[ComposeRowView alloc]
@@ -292,7 +279,6 @@ NSMenuItem *ComposeRowItem(NSString *name, NSDate *due, BOOL dayOpen,
     v.cleanName = name ?: @"";
     v.dayValue = due;
     v.timeValue = due;
-    v.dayOpen = dayOpen;
     v.target = target;
     v.action = action;
     v.chipTarget = chipTarget;

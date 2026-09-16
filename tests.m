@@ -681,7 +681,7 @@ int main(int argc, char **argv) {
         rowParts.year = 2026; rowParts.month = 9; rowParts.day = 22;
         rowParts.hour = 17; rowParts.minute = 30;
         NSDate *rowDue = [rowCal dateFromComponents:rowParts];
-        NSMenuItem *rowItem = ComposeRowItem(@"draft", rowDue, NO, nil, NULL, nil, NULL, 372);
+        NSMenuItem *rowItem = ComposeRowItem(@"draft", rowDue, nil, NULL, nil, NULL, 372);
         ComposeRowView *row = (ComposeRowView *)rowItem.view;
         [row layoutSubtreeIfNeeded];
         NSDateComponents *chosen = [rowCal components:(NSCalendarUnitYear |
@@ -716,19 +716,19 @@ int main(int argc, char **argv) {
             { "commit fires once",      ({ [row commit]; BOOL first = row.committed;
                                            [row commit]; first; }) },
             { "focus loss does not add", ({
-                  NSMenuItem *it2 = ComposeRowItem(@"typed", rowDue, NO, nil, NULL, nil, NULL, 372);
+                  NSMenuItem *it2 = ComposeRowItem(@"typed", rowDue, nil, NULL, nil, NULL, 372);
                   ComposeRowView *r2 = (ComposeRowView *)it2.view;
                   r2.nameField.target != nil || r2.nameField.action != NULL
                       ? NO : YES; }) },
             { "return commits",          ({
-                  NSMenuItem *it3 = ComposeRowItem(@"typed", rowDue, NO, nil, NULL, nil, NULL, 372);
+                  NSMenuItem *it3 = ComposeRowItem(@"typed", rowDue, nil, NULL, nil, NULL, 372);
                   ComposeRowView *r3 = (ComposeRowView *)it3.view;
                   NSTextView *probe3 = [[NSTextView alloc] init];
                   [r3 control:r3.nameField textView:probe3
                       doCommandBySelector:@selector(insertNewline:)];
                   r3.committed && !r3.cancelled; }) },
             { "escape cancels",          ({
-                  NSMenuItem *it4 = ComposeRowItem(@"typed", rowDue, NO, nil, NULL, nil, NULL, 372);
+                  NSMenuItem *it4 = ComposeRowItem(@"typed", rowDue, nil, NULL, nil, NULL, 372);
                   ComposeRowView *r4 = (ComposeRowView *)it4.view;
                   NSTextView *probe4 = [[NSTextView alloc] init];
                   [r4 control:r4.nameField textView:probe4

@@ -183,8 +183,7 @@ static const NSTimeInterval kStaleSeconds = 300;
             parts.minute = 59;
             self.draftDue = [cal2 dateFromComponents:parts] ?: now;
         }
-        [menu addItem:ComposeRowItem(self.draftName ?: @"", self.draftDue,
-                                     self.pickingDay, self,
+        [menu addItem:ComposeRowItem(self.draftName ?: @"", self.draftDue, self,
                                      @selector(commitTask:), self,
                                      @selector(toggleDayPicker:), cardWidth)];
         if (self.pickingDay)
