@@ -79,9 +79,12 @@
     self.backdrop.material = NSVisualEffectMaterialMenu;
     self.backdrop.blendingMode = NSVisualEffectBlendingModeBehindWindow;
     self.backdrop.state = NSVisualEffectStateActive;
-    self.backdrop.wantsLayer = YES;
+    self.backdrop.emphasized = NO;
     self.backdrop.layer.cornerRadius = 10;
     self.backdrop.layer.masksToBounds = YES;
+    self.backdrop.layer.borderWidth = 1;
+    self.backdrop.layer.borderColor =
+        [NSColor colorWithWhite:1.0 alpha:0.12].CGColor;
     [self.backdrop addSubview:root];
 
     self.widthRule = [self.backdrop.widthAnchor constraintEqualToConstant:320];
