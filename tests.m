@@ -680,13 +680,15 @@ int main(int argc, char **argv) {
             { "return commits",          ({
                   NSMenuItem *it3 = ComposeRowItem(@"typed", rowDue, nil, NULL, 372);
                   ComposeRowView *r3 = (ComposeRowView *)it3.view;
-                  [r3 control:r3.nameField textView:nil
+                  NSTextView *probe3 = [[NSTextView alloc] init];
+                  [r3 control:r3.nameField textView:probe3
                       doCommandBySelector:@selector(insertNewline:)];
                   r3.committed && !r3.cancelled; }) },
             { "escape cancels",          ({
                   NSMenuItem *it4 = ComposeRowItem(@"typed", rowDue, nil, NULL, 372);
                   ComposeRowView *r4 = (ComposeRowView *)it4.view;
-                  [r4 control:r4.nameField textView:nil
+                  NSTextView *probe4 = [[NSTextView alloc] init];
+                  [r4 control:r4.nameField textView:probe4
                       doCommandBySelector:@selector(cancelOperation:)];
                   r4.committed && r4.cancelled; }) },
             { "a draft is restored",    [row.nameField.stringValue
