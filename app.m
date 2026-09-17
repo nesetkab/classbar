@@ -164,7 +164,7 @@ static const NSTimeInterval kStaleSeconds = 300;
             NSColor *fill = (notice || [e[@"now"] boolValue]) ? base : PaleColor(base);
             [menu addItem:CardItem(t, e[@"code"], e[@"when"], e[@"room"], e[@"link"],
                                    e[@"zoom"], e[@"tip"], fill,
-                                   [e[@"progress"] doubleValue], cardWidth)];
+                                   [e[@"progress"] doubleValue], k == 0, cardWidth)];
         }
     }
 

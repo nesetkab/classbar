@@ -87,9 +87,10 @@ static BOOL CardHasDetail(NSString *when, NSString *room, NSString *zoom) {
 }
 
 static CGFloat CardHeight(NSString *when, NSString *room, NSString *zoom,
-                          CGFloat progress) {
-    if (!CardHasDetail(when, room, zoom)) return 33.0;
-    return progress > 0 ? 61.0 : 51.0;
+                          CGFloat progress, BOOL first) {
+    CGFloat base = CardHasDetail(when, room, zoom)
+                 ? (progress > 0 ? 61.0 : 51.0) : 33.0;
+    return base + (first ? kRowInset / 2 : 0);
 }
 
 static NSPanel *gTipPanel;
@@ -496,6 +497,7 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
 @property (copy) NSString *zoom;
 @property (strong) NSColor *bg;
 @property (assign) CGFloat progress;
+@property (assign) BOOL firstRow;
 @property (assign) BOOL overPill;
 @end
 
@@ -561,6 +563,13 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
 
 @implementation CardView
 
+- (NSRect)boxRect {
+    CGFloat top = self.firstRow ? kRowInset : kRowInset / 2;
+    return NSMakeRect(kRowInset, kRowInset / 2,
+                      NSWidth(self.bounds) - kRowInset * 2,
+                      NSHeight(self.bounds) - kRowInset / 2 - top);
+}
+
 - (void)syncHoverAt:(NSPoint)pt {
     BOOL onPill = self.zoom.length && NSPointInRect(pt, [self pillRect]);
     if (onPill != self.overPill || !self.hovered) {
@@ -573,7 +582,7 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
 
 - (NSRect)pillRect {
     if (!self.zoom.length) return NSZeroRect;
-    NSRect box = NSInsetRect(self.bounds, kRowInset, kRowInset / 2);
+    NSRect box = [self boxRect];
     NSDictionary *f = @{ NSFontAttributeName:
         [NSFont systemFontOfSize:9.5 weight:NSFontWeightSemibold] };
     CGFloat w = ceil([@"zoom" sizeWithAttributes:f].width) + 25;
@@ -608,7 +617,7 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
 }
 
 - (void)drawRect:(NSRect)dirty {
-    NSRect box = NSInsetRect(self.bounds, kRowInset, kRowInset / 2);
+    NSRect box = [self boxRect];
     NSBezierPath *p = [NSBezierPath bezierPathWithRoundedRect:box
                                                       xRadius:kRowRadius
                                                       yRadius:kRowRadius];
@@ -895,12 +904,14 @@ NSMenuItem *AssignmentItem(NSDictionary *item, NSString *due, NSString *name,
 
 NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *room,
                             NSString *link, NSString *zoom, NSString *tip,
-                            NSColor *bg, CGFloat progress, CGFloat width) {
+                            NSColor *bg, CGFloat progress, BOOL first, CGFloat width) {
     CardView *v = [[CardView alloc]
-        initWithFrame:NSMakeRect(0, 0, width, CardHeight(when, room, zoom, progress))];
+        initWithFrame:NSMakeRect(0, 0, width,
+                                 CardHeight(when, room, zoom, progress, first))];
     v.autoresizingMask = NSViewWidthSizable;
     v.title = title; v.code = code; v.when = when; v.room = room;
     v.link = link; v.zoom = zoom; v.tip = tip; v.bg = bg; v.progress = progress;
+    v.firstRow = first;
     NSMenuItem *i = [[NSMenuItem alloc] init];
     i.view = v;
     return i;
