@@ -713,7 +713,7 @@ NSFont *NameFont(void) {
 }
 
 - (BOOL)deletable {
-    return [self.item[@"task"] boolValue] && self.deleteAction != NULL;
+    return self.done && [self.item[@"task"] boolValue] && self.deleteAction != NULL;
 }
 
 - (NSRect)deleteRect {

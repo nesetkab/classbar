@@ -173,6 +173,7 @@ int main(int argc, char **argv) {
                     v.deleteAction = @selector(description);
                     v.hovered = YES;
                 }
+
                 v.dueWidth = dueWidth;
                 [rows addObject:v];
             }
@@ -937,6 +938,35 @@ int main(int argc, char **argv) {
         for (size_t i = 0; i < sizeof(rowChecks) / sizeof(rowChecks[0]); i++) {
             if (!rowChecks[i].ok) fails++;
             printf("  %-4s %s\n", rowChecks[i].ok ? "ok" : "FAIL", rowChecks[i].label);
+        }
+
+        printf("\ndeleting a task\n");
+        struct { const char *label; BOOL ok; } killChecks[] = {
+            { "a done task can be deleted", ({
+                  AssignmentView *v = [[AssignmentView alloc]
+                      initWithFrame:NSMakeRect(0, 0, 360, 22)];
+                  v.item = @{ @"task": @YES, @"name": @"walk the dog" };
+                  v.deleteAction = @selector(description);
+                  v.done = YES;
+                  v.deletable; }) },
+            { "an open task cannot", ({
+                  AssignmentView *v = [[AssignmentView alloc]
+                      initWithFrame:NSMakeRect(0, 0, 360, 22)];
+                  v.item = @{ @"task": @YES, @"name": @"walk the dog" };
+                  v.deleteAction = @selector(description);
+                  v.done = NO;
+                  !v.deletable; }) },
+            { "a canvas assignment never can", ({
+                  AssignmentView *v = [[AssignmentView alloc]
+                      initWithFrame:NSMakeRect(0, 0, 360, 22)];
+                  v.item = @{ @"name": @"HW Chapter 3" };
+                  v.deleteAction = @selector(description);
+                  v.done = YES;
+                  !v.deletable; }) },
+        };
+        for (size_t i = 0; i < sizeof(killChecks) / sizeof(killChecks[0]); i++) {
+            if (!killChecks[i].ok) fails++;
+            printf("  %-4s %s\n", killChecks[i].ok ? "ok" : "FAIL", killChecks[i].label);
         }
 
         printf("\nquick tasks\n");

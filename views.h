@@ -63,6 +63,7 @@ extern const CGFloat kDoneCircleWidth;
 @property (strong) NSDictionary *item;
 @property (weak)   id target;
 @property (assign) SEL toggleAction;
+- (BOOL)deletable;
 @end
 
 @interface FooterView : NSView
