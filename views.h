@@ -93,6 +93,7 @@ NSMenuItem *ComposeRowItem(NSString *name, NSDate *due,
                            SEL dayAction, CGFloat width);
 NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width);
 NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *room,
+                     NSString *at, NSString *gap,
                      NSString *link, NSString *zoom, NSString *tip,
                      NSColor *bg, CGFloat progress, CGFloat width);
 NSString *SquashKey(NSString *s);

@@ -145,14 +145,17 @@ int main(int argc, char **argv) {
         if (argc > 2 && strcmp(argv[1], "--menu") == 0) {
             CGFloat w = 372, pad = 0;
             NSMutableArray *rows = [NSMutableArray array];
-            [rows addObject:CardItem(@"Design Studio", @"DSGN 1501", @"4:35p · 56m left",
-                                     @"Studio 268", @"", @"", @"",
+            [rows addObject:CardItem(@"Design Studio", @"DSGN 1501", @"4:35p • 56m left",
+                                     @"Studio 268", @"4:35p", @"56m left",
+                                     @"", @"", @"",
                                      CoursePalette()[4], 0.62, w).view];
-            [rows addObject:CardItem(@"next: linear algebra", @"MATH 2331", @"1:35p · in 2h",
-                                     @"math building 118", @"", @"", @"",
+            [rows addObject:CardItem(@"Linear Algebra", @"MATH 2331", @"1:35p • in 2h",
+                                     @"Math Building 118", @"1:35p", @"in 2h",
+                                     @"", @"", @"",
                                      PaleColor(CoursePalette()[2]), 0, w).view];
-            [rows addObject:CardItem(@"done for the day! :3", @"", @"", @"", @"", @"",
-                                     @"", NoticeColor(), 0, w).view];
+            [rows addObject:CardItem(@"done for the day! :3", @"", @"", @"",
+                                     @"", @"", @"", @"", @"",
+                                     NoticeColor(), 0, w).view];
             NSArray *items = @[ @[@"club info meeting", @"8:00p", @0, @"DSGN 1501", @4],
                                 @[@"HW Chapter 3", @"2d", @0, @"PHYS 1151", @0],
                                 @[@"reading guide 4.5", @"5d", @0, @"MATH 2331", @2],

@@ -155,14 +155,12 @@ static const NSTimeInterval kStaleSeconds = 300;
         for (NSUInteger k = 0; k < series.count; k++) {
             NSDictionary *e = series[k];
             BOOL notice = [e[@"notice"] boolValue];
-            NSString *t = (k == 0 || notice)
-                        ? e[@"title"]
-                        : [NSString stringWithFormat:@"next: %@", e[@"title"]];
             NSColor *base = notice ? blue
                 : RailForCourse(self.schedule,
                                 [e[@"code"] length] ? e[@"code"] : e[@"title"]);
             NSColor *fill = (notice || [e[@"now"] boolValue]) ? base : PaleColor(base);
-            [menu addItem:CardItem(t, e[@"code"], e[@"when"], e[@"room"], e[@"link"],
+            [menu addItem:CardItem(e[@"title"], e[@"code"], e[@"when"], e[@"room"],
+                                   e[@"at"], e[@"gap"], e[@"link"],
                                    e[@"zoom"], e[@"tip"], fill,
                                    [e[@"progress"] doubleValue], cardWidth)];
         }

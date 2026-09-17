@@ -491,6 +491,8 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
 @property (copy) NSString *title;
 @property (copy) NSString *code;
 @property (copy) NSString *when;
+@property (copy) NSString *at;
+@property (copy) NSString *gap;
 @property (copy) NSString *room;
 @property (copy) NSString *link;
 @property (copy) NSString *zoom;
@@ -561,6 +563,18 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
 
 @implementation CardView
 
+- (NSDictionary *)detailAttributes {
+    return @{ NSFontAttributeName:
+                  [NSFont monospacedDigitSystemFontOfSize:11
+                                                   weight:NSFontWeightRegular],
+              NSForegroundColorAttributeName: [NSColor colorWithWhite:0.26 alpha:1.0] };
+}
+
+- (CGFloat)detailBaseline {
+    NSRect box = NSInsetRect(self.bounds, kRowInset, kRowInset / 2);
+    return NSMinY(box) + (self.progress > 0 ? 19 : 7);
+}
+
 - (void)syncHoverAt:(NSPoint)pt {
     BOOL onPill = self.zoom.length && NSPointInRect(pt, [self pillRect]);
     if (onPill != self.overPill || !self.hovered) {
@@ -578,10 +592,10 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
         [NSFont systemFontOfSize:9.5 weight:NSFontWeightSemibold] };
     CGFloat w = ceil([@"zoom" sizeWithAttributes:f].width) + 25;
     CGFloat h = 15;
-    CGFloat x = NSMaxX(box) - kTextInset - w;
-    CGFloat y = NSMinY(box) + (NSHeight(box) * 0.5 - h) * 0.5 + 1;
-    if (x < NSMinX(box) + 8) x = NSMinX(box) + 8;
-    if (y < NSMinY(box) + 3) y = NSMinY(box) + 3;
+    CGFloat roomW = self.room.length
+        ? ceil([self.room sizeWithAttributes:[self detailAttributes]].width) + 8 : 0;
+    CGFloat x = NSMinX(box) + kTextInset + roomW;
+    CGFloat y = [self detailBaseline] - 2;
     return NSMakeRect(x, y, w, h);
 }
 
@@ -642,13 +656,15 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
         NSFontAttributeName: [NSFont systemFontOfSize:13 weight:NSFontWeightSemibold],
         NSForegroundColorAttributeName: [NSColor blackColor]
     };
-    NSDictionary *sAttr = @{
-        NSFontAttributeName: [NSFont monospacedDigitSystemFontOfSize:11 weight:NSFontWeightRegular],
-        NSForegroundColorAttributeName: [NSColor colorWithWhite:0.13 alpha:1.0]
+    NSDictionary *sAttr = [self detailAttributes];
+    NSDictionary *aAttr = @{
+        NSFontAttributeName: [NSFont monospacedDigitSystemFontOfSize:12
+                                                              weight:NSFontWeightMedium],
+        NSForegroundColorAttributeName: [NSColor blackColor]
     };
 
     CGFloat topY = NSMaxY(box) - 22;
-    CGFloat botY = NSMinY(box) + (self.progress > 0 ? 19 : 7);
+    CGFloat botY = [self detailBaseline];
 
     NSMutableAttributedString *head = [[NSMutableAttributedString alloc]
         initWithString:self.title attributes:tAttr];
@@ -666,9 +682,28 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
         return;
     }
 
-    [head drawAtPoint:NSMakePoint(NSMinX(box) + kTextInset, topY)];
-    [self.when drawAtPoint:NSMakePoint(NSMinX(box) + kTextInset, botY)
-            withAttributes:sAttr];
+    CGFloat rightEdge = NSMaxX(box) - kTextInset;
+    NSString *atText = self.at.length ? self.at : self.when;
+    NSSize as = [atText sizeWithAttributes:aAttr];
+    [atText drawAtPoint:NSMakePoint(rightEdge - ceil(as.width), topY + 1)
+         withAttributes:aAttr];
+
+    NSMutableParagraphStyle *clip = [[NSMutableParagraphStyle alloc] init];
+    clip.lineBreakMode = NSLineBreakByTruncatingTail;
+    [head addAttribute:NSParagraphStyleAttributeName value:clip
+                 range:NSMakeRange(0, head.length)];
+    CGFloat headRoom = rightEdge - ceil(as.width) - 10 - NSMinX(box) - kTextInset;
+    [head drawInRect:NSMakeRect(NSMinX(box) + kTextInset, topY,
+                                MAX(20, headRoom), ceil([head size].height))];
+
+    if (self.gap.length) {
+        NSSize gs = [self.gap sizeWithAttributes:sAttr];
+        [self.gap drawAtPoint:NSMakePoint(rightEdge - ceil(gs.width), botY)
+               withAttributes:sAttr];
+    }
+    if (self.room.length)
+        [self.room drawAtPoint:NSMakePoint(NSMinX(box) + kTextInset, botY)
+               withAttributes:sAttr];
 
     if (self.zoom.length) {
         NSRect pill = [self pillRect];
@@ -686,10 +721,6 @@ NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width) {
               withAttributes:zAttr];
         DrawSymbol(@"arrow.up.right", 8.5, [NSColor whiteColor],
                    NSMakeRect(tx + zs.width + 2, NSMinY(pill), 11, NSHeight(pill)));
-    } else {
-        NSSize rs = [self.room sizeWithAttributes:sAttr];
-        [self.room drawAtPoint:NSMakePoint(NSMaxX(box) - kTextInset - rs.width, botY)
-                withAttributes:sAttr];
     }
 }
 
@@ -894,12 +925,14 @@ NSMenuItem *AssignmentItem(NSDictionary *item, NSString *due, NSString *name,
 }
 
 NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *room,
+                            NSString *at, NSString *gap,
                             NSString *link, NSString *zoom, NSString *tip,
                             NSColor *bg, CGFloat progress, CGFloat width) {
     CardView *v = [[CardView alloc]
         initWithFrame:NSMakeRect(0, 0, width, CardHeight(when, room, zoom, progress))];
     v.autoresizingMask = NSViewWidthSizable;
     v.title = title; v.code = code; v.when = when; v.room = room;
+    v.at = at; v.gap = gap;
     v.link = link; v.zoom = zoom; v.tip = tip; v.bg = bg; v.progress = progress;
     NSMenuItem *i = [[NSMenuItem alloc] init];
     i.view = v;

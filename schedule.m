@@ -175,18 +175,25 @@ NSArray *cb_series(Schedule *s, int ymd, int mins, int day, int count) {
 
         if (hit) {
             int st = [hit[@"start"] intValue], en = [hit[@"end"] intValue];
-            NSString *when;
-            if (now)
-                when = [NSString stringWithFormat:@"%@ • %@ left", HHMMshort(st), DUR(en - mins)];
-            else if (d == day)
-                when = [NSString stringWithFormat:@"%@ • in %@", HHMMshort(st), DUR(st - mins)];
-            else
-                when = [NSString stringWithFormat:@"%.3s %@", kDayName[d], HHMMshort(st)];
+            NSString *at, *gap = @"";
+            if (now) {
+                at = HHMMshort(st);
+                gap = [NSString stringWithFormat:@"%@ left", DUR(en - mins)];
+            } else if (d == day) {
+                at = HHMMshort(st);
+                gap = [NSString stringWithFormat:@"in %@", DUR(st - mins)];
+            } else {
+                at = [NSString stringWithFormat:@"%.3s %@", kDayName[d], HHMMshort(st)];
+            }
+            NSString *when = gap.length
+                ? [NSString stringWithFormat:@"%@ • %@", at, gap] : at;
 
             [out addObject:@{
                 @"title": hit[@"name"],
                 @"code": hit[@"code"] ?: @"",
                 @"when": when,
+                @"at": at,
+                @"gap": gap,
                 @"room": [hit[@"room"] length] ? hit[@"room"] : @"",
                 @"link": [hit[@"canvas"] length] ? hit[@"canvas"] : s.canvasHome,
                 @"zoom": hit[@"zoom"] ?: @"",
