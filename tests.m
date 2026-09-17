@@ -9,27 +9,27 @@
 static int fails = 0;
 
 static Schedule *FixtureSchedule(void) {
-    NSString *canvas = @"https://example.instructure.com/courses/259102";
+    NSString *canvas = @"https://example.instructure.com/courses/1001";
     return [Schedule loadFromDictionary:@{
         @"canvasHome": @"https://example.instructure.com/",
         @"term": @{ @"start": @20260909, @"end": @20261220,
                     @"beforeLabel": @"Classes begin Sep 9" },
         @"classes": @[
-            @{ @"name": @"Gen Chem", @"code": @"CHEM 1151",
-               @"room": @"Shillman Hall 105", @"days": @[@0, @2, @3],
+            @{ @"name": @"Intro Physics", @"code": @"PHYS 1151",
+               @"room": @"Science Hall 210", @"days": @[@0, @2, @3],
                @"start": @"09:15", @"end": @"10:20", @"canvas": canvas },
-            @{ @"name": @"CHEM Recitation", @"code": @"CHEM 1153",
-               @"room": @"Robinson Hall 411", @"days": @[@0],
+            @{ @"name": @"Physics Lab", @"code": @"PHYS 1153",
+               @"room": @"Science Hall 411", @"days": @[@0],
                @"start": @"11:45", @"end": @"12:50" },
-            @{ @"name": @"Calculus 2", @"code": @"MATH 1342",
-               @"room": @"Kariotis Hall 110", @"days": @[@0, @2, @3],
+            @{ @"name": @"Linear Algebra", @"code": @"MATH 2331",
+               @"room": @"Math Building 118", @"days": @[@0, @2, @3],
                @"start": @"13:35", @"end": @"14:40" },
-            @{ @"name": @"Creative Writing", @"code": @"CRWT 1170",
+            @{ @"name": @"Writing Seminar", @"code": @"ENGW 1111",
                @"room": @"Online", @"days": @[@0, @2],
                @"start": @"14:50", @"end": @"16:30",
                @"zoom": @"https://example.instructure.com/zoom" },
-            @{ @"name": @"Cornerstone 1", @"code": @"GE 1501",
-               @"room": @"Snell 268", @"days": @[@0, @2, @3],
+            @{ @"name": @"Design Studio", @"code": @"DSGN 1501",
+               @"room": @"Studio 268", @"days": @[@0, @2, @3],
                @"start": @"16:35", @"end": @"17:40" },
         ],
     }];
@@ -145,17 +145,17 @@ int main(int argc, char **argv) {
         if (argc > 2 && strcmp(argv[1], "--menu") == 0) {
             CGFloat w = 372, pad = 0;
             NSMutableArray *rows = [NSMutableArray array];
-            [rows addObject:CardItem(@"Cornerstone 1", @"GE 1501", @"4:35p · 56m left",
-                                     @"Snell 268", @"", @"", @"",
+            [rows addObject:CardItem(@"Design Studio", @"DSGN 1501", @"4:35p · 56m left",
+                                     @"Studio 268", @"", @"", @"",
                                      CoursePalette()[4], 0.62, w).view];
-            [rows addObject:CardItem(@"next: calculus 2", @"MATH 1342", @"1:35p · in 2h",
-                                     @"kariotis 110", @"", @"", @"",
+            [rows addObject:CardItem(@"next: linear algebra", @"MATH 2331", @"1:35p · in 2h",
+                                     @"math building 118", @"", @"", @"",
                                      PaleColor(CoursePalette()[2]), 0, w).view];
             [rows addObject:CardItem(@"done for the day! :3", @"", @"", @"", @"", @"",
                                      @"", NoticeColor(), 0, w).view];
-            NSArray *items = @[ @[@"club info meeting", @"8:00p", @0, @"GE 1501", @4],
-                                @[@"HW Chapter 3", @"2d", @0, @"CHEM 1151", @0],
-                                @[@"reading guide 4.5", @"5d", @0, @"MATH 1342", @2],
+            NSArray *items = @[ @[@"club info meeting", @"8:00p", @0, @"DSGN 1501", @4],
+                                @[@"HW Chapter 3", @"2d", @0, @"PHYS 1151", @0],
+                                @[@"reading guide 4.5", @"5d", @0, @"MATH 2331", @2],
                                 @[@"do something at", @"tmr 8:00p", @1, @"", @0] ];
             CGFloat dueWidth = 0;
             for (NSArray *r in items) {
@@ -345,28 +345,28 @@ int main(int argc, char **argv) {
 
         printf("\ncb_series — first entry\n");
         T("before term",             20260907, 600,  0, "term hasn't started", NULL);
-        T("Mon 9:00 (15m before)",    20260914, 540,  0, "Gen Chem",        "9:15a • in 15m");
-        T("Mon 9:15 (start edge)",    20260914, 555,  0, "Gen Chem",        "9:15a • 1h 5m left");
-        T("Mon 10:19 (last minute)",  20260914, 619,  0, "Gen Chem",        "9:15a • 1m left");
-        T("Mon 10:20 (end edge)",     20260914, 620,  0, "CHEM Recitation", "11:45a • in 1h 25m");
-        T("Mon 4:30 (CRWT ended)",    20260914, 990,  0, "Cornerstone 1",   "4:35p • in 5m");
-        T("Mon 4:35 (Cornerstone)",   20260914, 995,  0, "Cornerstone 1",   "4:35p • 1h 5m left");
+        T("Mon 9:00 (15m before)",    20260914, 540,  0, "Intro Physics",        "9:15a • in 15m");
+        T("Mon 9:15 (start edge)",    20260914, 555,  0, "Intro Physics",        "9:15a • 1h 5m left");
+        T("Mon 10:19 (last minute)",  20260914, 619,  0, "Intro Physics",        "9:15a • 1m left");
+        T("Mon 10:20 (end edge)",     20260914, 620,  0, "Physics Lab", "11:45a • in 1h 25m");
+        T("Mon 4:30 (writing ended)",    20260914, 990,  0, "Design Studio",   "4:35p • in 5m");
+        T("Mon 4:35 (studio)",   20260914, 995,  0, "Design Studio",   "4:35p • 1h 5m left");
         T("Mon 6:00 PM (day over)",   20260914, 1080, 0, "done for the day! :3", "");
         T("Tue is free",              20260915, 700,  1, "no classes today!", "");
         T("Thu 6:00 PM (day over)",   20260917, 1080, 3, "done for the day! :3", "");
         T("Fri is free",              20260918, 700,  4, "no classes today!", "");
         T("Sun is free",              20260920, 700,  6, "no classes today!", "");
-        T("Thu 10:30 -> Calculus",    20260917, 630,  3, "Calculus 2",      "1:35p • in 3h 5m");
+        T("Thu 10:30 -> Calculus",    20260917, 630,  3, "Linear Algebra",      "1:35p • in 3h 5m");
         T("after term",               20261221, 600,  0, "term is over",    "");
 
         printf("\ncb_series — current + next pairing\n");
-        T2("Mon 9:30 in Gen Chem",    20260914, 570,  0, "Gen Chem", "CHEM Recitation");
-        T2("Mon 4:00 in CRWT",        20260914, 960,  0, "Creative Writing", "Cornerstone 1");
+        T2("Mon 9:30 in physics",    20260914, 570,  0, "Intro Physics", "Physics Lab");
+        T2("Mon 4:00 in writing",        20260914, 960,  0, "Writing Seminar", "Design Studio");
         T2("Thu evening is done",     20260917, 1080, 3, "done for the day! :3", "");
         T2("Tue free shows one card", 20260915, 700,  1, "no classes today!", "");
-        T2("Mon 5:00 last class",     20260914, 1020, 0, "Cornerstone 1", "done for the day! :3");
-        T2("Mon 4:30 before last",    20260914, 990,  0, "Cornerstone 1", "done for the day! :3");
-        T2("Thu 5:00 last class",     20260917, 1020, 3, "Cornerstone 1", "done for the day! :3");
+        T2("Mon 5:00 last class",     20260914, 1020, 0, "Design Studio", "done for the day! :3");
+        T2("Mon 4:30 before last",    20260914, 990,  0, "Design Studio", "done for the day! :3");
+        T2("Thu 5:00 last class",     20260917, 1020, 3, "Design Studio", "done for the day! :3");
 
         printf("\ndone-for-the-day tip\n");
         NSString *tip = cb_series(gSched, 20260914, 1080, 0, 1)[0][@"tip"];
@@ -381,10 +381,10 @@ int main(int argc, char **argv) {
         struct { const char *label; BOOL ok; } freeChecks[] = {
             { "one card, not tomorrow's class", freeDay.count == 1 },
             { "names the next class day",       [freeTip hasPrefix:@"next: wednesday"] },
-            { "lists every class that day",     [freeTip containsString:@"9:15a · Gen Chem"] &&
-                  [freeTip containsString:@"1:35p · Calculus 2"] &&
-                  [freeTip containsString:@"4:35p · Cornerstone 1"] },
-            { "carries rooms",                  [freeTip containsString:@"Shillman Hall 105"] },
+            { "lists every class that day",     [freeTip containsString:@"9:15a · Intro Physics"] &&
+                  [freeTip containsString:@"1:35p · Linear Algebra"] &&
+                  [freeTip containsString:@"4:35p · Design Studio"] },
+            { "carries rooms",                  [freeTip containsString:@"Science Hall 210"] },
             { "skips the next free day",        [cb_series(gSched, 20260918, 700, 4, 1)[0][@"tip"]
                   hasPrefix:@"next: monday"] },
         };
@@ -396,11 +396,11 @@ int main(int argc, char **argv) {
         printf("\nmarking work done\n");
         NSDictionary *withURL = @{ @"name": @"Chapter 5", @"due": @"2026-09-20T03:59:59Z",
                                    @"url": @"https://x.instructure.com/courses/1/assignments/2" };
-        NSDictionary *noURL = @{ @"name": @"Write poem", @"course": @"CRWT 1170",
+        NSDictionary *noURL = @{ @"name": @"Write poem", @"course": @"ENGW 1111",
                                  @"due": @"2026-09-20T03:59:59Z" };
-        NSDictionary *moved = @{ @"name": @"Write poem", @"course": @"CRWT 1170",
+        NSDictionary *moved = @{ @"name": @"Write poem", @"course": @"ENGW 1111",
                                  @"due": @"2026-09-27T03:59:59Z" };
-        NSDictionary *sameName = @{ @"name": @"Write poem", @"course": @"ENGW 1111",
+        NSDictionary *sameName = @{ @"name": @"Write poem", @"course": @"PHYS 1151",
                                     @"due": @"2026-09-20T03:59:59Z" };
         NSDate *anchorNow = ISODate(@"2026-09-15T00:00:00Z");
         NSDictionary *map = @{
@@ -413,7 +413,7 @@ int main(int argc, char **argv) {
             { "url is the key when present", [DoneKey(withURL) isEqualToString:
                   @"https://x.instructure.com/courses/1/assignments/2"] },
             { "falls back to name and course", [DoneKey(noURL) isEqualToString:
-                  @"Write poem|CRWT 1170"] },
+                  @"Write poem|ENGW 1111"] },
             { "key survives a due date change", [DoneKey(noURL)
                   isEqualToString:DoneKey(moved)] },
             { "same name, other course differs", ![DoneKey(noURL)
@@ -481,14 +481,14 @@ int main(int argc, char **argv) {
         }
 
         printf("\nzoom + canvas links\n");
-        NSArray *crwt = cb_series(gSched, 20260914, 960, 0, 1);
-        BOOL hasZoom = [crwt[0][@"zoom"] length] > 0;
-        printf("  %-4s CRWT card carries a zoom link\n", hasZoom ? "ok" : "FAIL");
+        NSArray *writing2 = cb_series(gSched, 20260914, 960, 0, 1);
+        BOOL hasZoom = [writing2[0][@"zoom"] length] > 0;
+        printf("  %-4s writing card carries a zoom link\n", hasZoom ? "ok" : "FAIL");
         if (!hasZoom) fails++;
-        NSArray *chem = cb_series(gSched, 20260914, 540, 0, 1);
-        BOOL chemLink = [chem[0][@"link"] hasSuffix:@"259102"];
-        printf("  %-4s Gen Chem links to its canvas course\n", chemLink ? "ok" : "FAIL");
-        if (!chemLink) fails++;
+        NSArray *opening = cb_series(gSched, 20260914, 540, 0, 1);
+        BOOL physLink = [opening[0][@"link"] hasSuffix:@"1001"];
+        printf("  %-4s physics links to its canvas course\n", physLink ? "ok" : "FAIL");
+        if (!physLink) fails++;
 
         printf("\ndue date parsing\n");
         const char *stamps[] = {
@@ -511,14 +511,14 @@ int main(int argc, char **argv) {
             @"UID:event-assignment-3409619@example.instructure.com",
             @"DTSTART;VALUE=DATE-TIME:20260911T160000Z",
             @"SUMMARY:Week 2 - Upload Poems to be",
-            @"  Workshopped [CRWT 1170 Intro to Poetry]",
+            @"  Workshopped [ENGW 1111 Intro to Poetry]",
             [@"URL:https://example.instructure.com/calendar?include_contexts=course_260574"
               stringByAppendingString:@"&month=09-11-2026#assignment_3409619"],
             @"END:VEVENT",
             @"BEGIN:VEVENT",
             @"UID:event-calendar-event-999@example.instructure.com",
             @"DTSTART;TZID=America/New_York:20260910T090000",
-            @"SUMMARY:Office Hours [CRWT 1170]",
+            @"SUMMARY:Office Hours [ENGW 1111]",
             @"END:VEVENT",
             @"BEGIN:VEVENT",
             @"UID:event-assignment-1@example.instructure.com",
@@ -542,7 +542,7 @@ int main(int argc, char **argv) {
                   [parsed[1][@"name"] isEqualToString:
                       @"Week 2 - Upload Poems to be Workshopped"] },
             { "course is split off",          parsed.count == 3 &&
-                  [parsed[1][@"course"] isEqualToString:@"CRWT 1170 Intro to Poetry"] },
+                  [parsed[1][@"course"] isEqualToString:@"ENGW 1111 Intro to Poetry"] },
             { "escapes are decoded",          parsed.count == 3 &&
                   [parsed[0][@"name"] isEqualToString:@"Reading response, part one"] },
             { "direct assignment url",        parsed.count == 3 &&
@@ -683,29 +683,29 @@ int main(int argc, char **argv) {
                   NSArray *r = cb_series(gSched, 20260907, 600, 0, 1);
                   [r[0][@"progress"] doubleValue] == 0.0; }) },
             { "a course keeps its colour",
-                  CourseColor(@"CHEM 1151") == CourseColor(@"chem 1151") },
+                  CourseColor(@"PHYS 1151") == CourseColor(@"phys 1151") },
             { "courses differ",
-                  CourseColor(@"CHEM 1151") != CourseColor(@"MATH 1342") },
+                  CourseColor(@"PHYS 1151") != CourseColor(@"MATH 2331") },
             { "no course has no colour",  CourseColor(@"") == nil },
             { "canvas course ids find the class", ({
-                  NSColor *one = RailForCourse(gSched, @"CHEM1151.11337.202710");
-                  NSColor *two = RailForCourse(gSched, @"CRWT1170.22544.202710");
+                  NSColor *one = RailForCourse(gSched, @"PHYS1151.10001.202710");
+                  NSColor *two = RailForCourse(gSched, @"ENGW1111.10003.202710");
                   one != nil && two != nil && one != two &&
                       [CoursePalette() containsObject:one] &&
                       [CoursePalette() containsObject:two]; }) },
             { "every class gets its own colour", ({
                   NSMutableSet *used = [NSMutableSet set];
-                  for (NSString *code in @[@"CHEM 1151", @"CHEM 1153", @"MATH 1342",
-                                           @"CRWT 1170", @"GE 1501"])
+                  for (NSString *code in @[@"PHYS 1151", @"PHYS 1153", @"MATH 2331",
+                                           @"ENGW 1111", @"DSGN 1501"])
                       [used addObject:RailForCourse(gSched, SquashKey(code))];
                   used.count == 5 && ![used containsObject:NoticeColor()]; }) },
             { "an unknown course still gets one",
-                  RailForCourse(gSched, @"GE1000.10290.202710") != nil },
+                  RailForCourse(gSched, @"ARTS1000.10009.202710") != nil },
             { "a task has no rail",  RailForCourse(gSched, @"") == nil },
             { "spacing does not matter",
-                  [SquashKey(@"CHEM 1151") isEqualToString:@"chem1151"] },
+                  [SquashKey(@"PHYS 1151") isEqualToString:@"phys1151"] },
             { "pale is lighter", ({
-                  NSColor *base = [CourseColor(@"GE 1501")
+                  NSColor *base = [CourseColor(@"DSGN 1501")
                       colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
                   NSColor *pale = [PaleColor(base)
                       colorUsingColorSpace:[NSColorSpace sRGBColorSpace]];
