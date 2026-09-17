@@ -147,12 +147,12 @@ int main(int argc, char **argv) {
             NSMutableArray *rows = [NSMutableArray array];
             [rows addObject:CardItem(@"Cornerstone 1", @"GE 1501", @"4:35p · 56m left",
                                      @"Snell 268", @"", @"", @"",
-                                     CoursePalette()[4], 0.62, YES, w).view];
+                                     CoursePalette()[4], 0.62, w).view];
             [rows addObject:CardItem(@"next: calculus 2", @"MATH 1342", @"1:35p · in 2h",
                                      @"kariotis 110", @"", @"", @"",
-                                     PaleColor(CoursePalette()[2]), 0, NO, w).view];
+                                     PaleColor(CoursePalette()[2]), 0, w).view];
             [rows addObject:CardItem(@"done for the day! :3", @"", @"", @"", @"", @"",
-                                     @"", NoticeColor(), 0, NO, w).view];
+                                     @"", NoticeColor(), 0, w).view];
             NSArray *items = @[ @[@"club info meeting", @"8:00p", @0, @"GE 1501", @4],
                                 @[@"HW Chapter 3", @"2d", @0, @"CHEM 1151", @0],
                                 @[@"reading guide 4.5", @"5d", @0, @"MATH 1342", @2],

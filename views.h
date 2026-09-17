@@ -93,7 +93,7 @@ NSMenuItem *ComposeRowItem(NSString *name, NSDate *due,
 NSMenuItem *CalendarRowItem(NSDate *due, id target, SEL action, CGFloat width);
 NSMenuItem *CardItem(NSString *title, NSString *code, NSString *when, NSString *room,
                      NSString *link, NSString *zoom, NSString *tip,
-                     NSColor *bg, CGFloat progress, BOOL first, CGFloat width);
+                     NSColor *bg, CGFloat progress, CGFloat width);
 NSString *SquashKey(NSString *s);
 NSArray *CoursePalette(void);
 NSColor *NoticeColor(void);
