@@ -57,6 +57,8 @@ extern const CGFloat kDoneCircleWidth;
 @property (assign) BOOL late;
 @property (assign) BOOL done;
 @property (assign) BOOL overCircle;
+@property (assign) BOOL overDelete;
+@property (assign) SEL deleteAction;
 @property (assign) CGFloat dueWidth;
 @property (strong) NSDictionary *item;
 @property (weak)   id target;
@@ -84,7 +86,7 @@ NSFont *NameFont(void);
 NSMenuItem *AssignmentItem(NSDictionary *item, NSString *due, NSString *name,
                            NSString *link, NSString *tip, BOOL late, BOOL done,
                            NSColor *rail, CGFloat dueWidth, CGFloat width,
-                           id target, SEL toggleAction);
+                           id target, SEL toggleAction, SEL deleteAction);
 NSMenuItem *ComposeRowItem(NSString *name, NSDate *due,
                            id target, SEL action, id chipTarget,
                            SEL dayAction, CGFloat width);

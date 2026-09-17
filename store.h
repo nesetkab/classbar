@@ -30,6 +30,7 @@ NSString *TasksPath(void);
 NSArray *LoadTasks(void);
 NSArray *PruneTasks(NSArray *tasks, NSDate *now);
 void AddTask(NSString *name, NSDate *due);
+void DeleteTask(NSString *name, NSString *due);
 NSString *DonePath(void);
 NSString *DoneKey(NSDictionary *item);
 NSDictionary *PruneDone(NSDictionary *map, NSDate *now);

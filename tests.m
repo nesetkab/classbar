@@ -168,6 +168,11 @@ int main(int argc, char **argv) {
                     initWithFrame:NSMakeRect(0, 0, w, 22)];
                 v.name = r[0]; v.due = r[1]; v.done = [r[2] boolValue];
                 v.rail = [r[3] length] ? CoursePalette()[[r[4] intValue]] : TaskColor();
+                if (![r[3] length]) {
+                    v.item = @{ @"task": @YES, @"name": r[0] };
+                    v.deleteAction = @selector(description);
+                    v.hovered = YES;
+                }
                 v.dueWidth = dueWidth;
                 [rows addObject:v];
             }

@@ -483,6 +483,16 @@ NSArray *LoadTasks(void) {
     return kept;
 }
 
+void DeleteTask(NSString *name, NSString *due) {
+    if (!name.length) return;
+    NSMutableArray *kept = [NSMutableArray array];
+    for (NSDictionary *t in LoadTasks())
+        if (![StringField(t, @"name") isEqualToString:name] ||
+            ![StringField(t, @"due") isEqualToString:due ?: @""])
+            [kept addObject:t];
+    WriteTasks(kept);
+}
+
 void AddTask(NSString *name, NSDate *due) {
     NSString *trimmed = [name stringByTrimmingCharactersInSet:
         [NSCharacterSet whitespaceAndNewlineCharacterSet]];

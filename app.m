@@ -196,7 +196,8 @@ static const NSTimeInterval kStaleSeconds = 300;
                                              ? TaskColor()
                                              : RailForCourse(self.schedule, cs),
                                          dueWidth, cardWidth,
-                                         self, @selector(toggleDone:))];
+                                         self, @selector(toggleDone:),
+                                         @selector(deleteTask:))];
         }
     }
 
@@ -414,6 +415,22 @@ static const NSTimeInterval kStaleSeconds = 300;
 
 - (void)menuWillOpen:(NSMenu *)menu __unused {
     self.menuOpen = YES;
+}
+
+- (void)deleteTask:(AssignmentView *)row {
+    NSDictionary *item = row.item;
+    if (![item[@"task"] boolValue]) return;
+    DeleteTask(item[@"name"], item[@"due"]);
+    SetDone(item, NO);
+
+    __weak ClassBar *weak = self;
+    dispatch_async(dispatch_get_main_queue(), ^{
+        ClassBar *me = weak;
+        NSMenu *m = me.liveMenu;
+        if (!me.menuOpen || !m) return;
+        [me menuNeedsUpdate:m];
+        [me restoreHoverUnderCursor:m];
+    });
 }
 
 - (void)toggleDone:(AssignmentView *)row {

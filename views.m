@@ -11,6 +11,7 @@ const CGFloat kDoneCircleWidth = 26.0;
 static const CGFloat kRowInset = 5.0;
 static const CGFloat kTextInset = 9.0;
 static const CGFloat kRowRadius = 6.0;
+
 NSColor *TaskColor(void) {
     return [NSColor colorWithSRGBRed:0.478 green:0.780 blue:0.769 alpha:1.0];
 }
@@ -711,6 +712,16 @@ NSFont *NameFont(void) {
                       NSHeight(self.bounds) - 2);
 }
 
+- (BOOL)deletable {
+    return [self.item[@"task"] boolValue] && self.deleteAction != NULL;
+}
+
+- (NSRect)deleteRect {
+    if (!self.deletable) return NSZeroRect;
+    NSRect c = [self circleRect];
+    return NSMakeRect(NSMinX(c) - 8 - 13, NSMidY(c) - 6.5, 13, 13);
+}
+
 - (NSRect)circleRect {
     NSRect r = [self rowRect];
     CGFloat d = 13;
@@ -719,8 +730,11 @@ NSFont *NameFont(void) {
 
 - (void)syncHoverAt:(NSPoint)pt {
     BOOL on = NSPointInRect(pt, NSInsetRect([self circleRect], -5, -4));
-    if (on != self.overCircle) {
+    BOOL kill = self.deletable &&
+                NSPointInRect(pt, NSInsetRect([self deleteRect], -3, -4));
+    if (on != self.overCircle || kill != self.overDelete) {
         self.overCircle = on;
+        self.overDelete = kill;
         self.needsDisplay = YES;
     }
     [super syncHoverAt:pt];
@@ -728,11 +742,18 @@ NSFont *NameFont(void) {
 
 - (void)mouseExited:(NSEvent *)e {
     self.overCircle = NO;
+    self.overDelete = NO;
     [super mouseExited:e];
 }
 
 - (void)mouseUp:(NSEvent *)e {
     NSPoint pt = [self convertPoint:e.locationInWindow fromView:nil];
+    if (self.deletable &&
+        NSPointInRect(pt, NSInsetRect([self deleteRect], -3, -4))) {
+        [self cancelTip];
+        ((void (*)(id, SEL, id))objc_msgSend)(self.target, self.deleteAction, self);
+        return;
+    }
     if (NSPointInRect(pt, NSInsetRect([self circleRect], -5, -4))) {
         if (self.target && self.toggleAction)
             ((void (*)(id, SEL, id))objc_msgSend)(self.target, self.toggleAction, self);
@@ -832,7 +853,9 @@ NSFont *NameFont(void) {
     NSSize ds = due.size;
     NSSize ns = [self.name sizeWithAttributes:nameAttr];
     CGFloat nameX = NSMinX([self rowRect]) + kTextInset;
-    CGFloat dueRight = NSMinX([self circleRect]) - 8;
+    BOOL showKill = self.hovered && self.deletable;
+    CGFloat dueRight = (showKill ? NSMinX([self deleteRect]) : NSMinX([self circleRect]))
+                     - 8;
 
     [due drawAtPoint:NSMakePoint(dueRight - ceil(ds.width),
                                  NSMidY(self.bounds) - ds.height / 2)];
@@ -842,6 +865,12 @@ NSFont *NameFont(void) {
         [self.name drawInRect:NSMakeRect(nameX, NSMidY(self.bounds) - ns.height / 2,
                                          nameW, ns.height)
                withAttributes:nameAttr];
+    if (showKill)
+        DrawSymbol(@"xmark", 9,
+                   [(self.overDelete ? [NSColor systemRedColor]
+                                     : [NSColor alternateSelectedControlTextColor])
+                       colorWithAlphaComponent:self.overDelete ? 1.0 : 0.65],
+                   [self deleteRect]);
     [self drawCircle];
 }
 
@@ -850,7 +879,7 @@ NSFont *NameFont(void) {
 NSMenuItem *AssignmentItem(NSDictionary *item, NSString *due, NSString *name,
                            NSString *link, NSString *tip, BOOL late, BOOL done,
                            NSColor *rail, CGFloat dueWidth, CGFloat width,
-                           id target, SEL toggleAction) {
+                           id target, SEL toggleAction, SEL deleteAction) {
     AssignmentView *v = [[AssignmentView alloc]
         initWithFrame:NSMakeRect(0, 0, width, 22)];
     v.autoresizingMask = NSViewWidthSizable;
@@ -858,6 +887,7 @@ NSMenuItem *AssignmentItem(NSDictionary *item, NSString *due, NSString *name,
     v.dueWidth = dueWidth;
     v.item = item; v.done = done; v.rail = rail;
     v.target = target; v.toggleAction = toggleAction;
+    v.deleteAction = deleteAction;
     NSMenuItem *i = [[NSMenuItem alloc] init];
     i.view = v;
     return i;
