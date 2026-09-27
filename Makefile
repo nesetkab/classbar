@@ -1,5 +1,6 @@
 CC ?= clang
-CFLAGS ?= -fobjc-arc -Wall -Wextra -O2
+ARCHS ?= -arch arm64 -arch x86_64
+CFLAGS ?= -fobjc-arc -Wall -Wextra -O2 -mmacosx-version-min=13.0 $(ARCHS)
 LDFLAGS ?= -framework Cocoa -framework UniformTypeIdentifiers
 VERSION ?= 1.0
 APP_NAME ?= ClassBar
@@ -7,8 +8,14 @@ BUNDLE_ID ?= local.classbar
 SIGN_IDENTITY ?= -
 PREFIX ?= $(HOME)/Applications
 
-LIB := icons.m store.m schedule.m ics.m views.m settings.m app.m
-HEADERS := store.h schedule.h ics.h views.h settings.h app.h icons.h
+BUILD := build
+LIB := $(addprefix src/,icons.m store.m schedule.m ics.m views.m settings.m app.m)
+HEADERS := $(wildcard src/*.h)
+
+BIN := $(BUILD)/classbar
+TESTBIN := $(BUILD)/cbtest
+BUNDLE := $(BUILD)/$(APP_NAME).app
+ZIP := $(BUILD)/$(APP_NAME).zip
 
 APP := $(PREFIX)/$(APP_NAME).app
 EXEC := $(APP)/Contents/MacOS/$(APP_NAME)
@@ -16,34 +23,44 @@ AGENT := $(HOME)/Library/LaunchAgents/$(BUNDLE_ID).plist
 CONFIG_DIR := $(HOME)/Library/Application Support/classbar
 UID := $(shell id -u)
 
-.PHONY: all test app install uninstall config run clean
+.PHONY: all test app dist install uninstall config run clean
 
-all: classbar
+all: $(BIN)
 
-classbar: $(LIB) main.m $(HEADERS)
-	$(CC) $(CFLAGS) $(LDFLAGS) $(LIB) main.m -o $@
+$(BUILD):
+	mkdir -p $@
 
-cbtest: $(LIB) tests.m $(HEADERS)
-	$(CC) $(CFLAGS) $(LDFLAGS) $(LIB) tests.m -o $@
+$(BIN): $(LIB) src/main.m $(HEADERS) | $(BUILD)
+	$(CC) $(CFLAGS) $(LDFLAGS) $(LIB) src/main.m -o $@
 
-test: cbtest
-	./cbtest
+$(TESTBIN): $(LIB) tests/tests.m $(HEADERS) | $(BUILD)
+	$(CC) $(CFLAGS) -Isrc $(LDFLAGS) $(LIB) tests/tests.m -o $@
 
-run: classbar
-	./classbar
+test: $(TESTBIN)
+	./$(TESTBIN)
 
-app: classbar
-	rm -rf "$(APP)"
-	mkdir -p "$(APP)/Contents/MacOS"
+run: $(BIN)
+	./$(BIN)
+
+app: $(BIN)
+	rm -rf "$(BUNDLE)"
+	mkdir -p "$(BUNDLE)/Contents/MacOS"
 	sed -e 's|@APP_NAME@|$(APP_NAME)|g' \
 	    -e 's|@BUNDLE_ID@|$(BUNDLE_ID)|g' \
 	    -e 's|@VERSION@|$(VERSION)|g' \
-	    packaging/Info.plist.in > "$(APP)/Contents/Info.plist"
-	cp classbar "$(EXEC)"
-	codesign -s $(SIGN_IDENTITY) --force "$(APP)"
+	    packaging/Info.plist.in > "$(BUNDLE)/Contents/Info.plist"
+	cp $(BIN) "$(BUNDLE)/Contents/MacOS/$(APP_NAME)"
+	codesign -s $(SIGN_IDENTITY) --force "$(BUNDLE)"
+
+dist: app
+	rm -f "$(ZIP)"
+	cd $(BUILD) && ditto -c -k --keepParent "$(APP_NAME).app" "$(APP_NAME).zip"
+	@echo "wrote $(ZIP)"
 
 install: app
-	mkdir -p "$(HOME)/Library/LaunchAgents"
+	mkdir -p "$(PREFIX)" "$(HOME)/Library/LaunchAgents"
+	rm -rf "$(APP)"
+	ditto "$(BUNDLE)" "$(APP)"
 	sed -e 's|@BUNDLE_ID@|$(BUNDLE_ID)|g' \
 	    -e 's|@EXEC_PATH@|$(EXEC)|g' \
 	    packaging/agent.plist.in > "$(AGENT)"
@@ -69,4 +86,4 @@ uninstall:
 	@echo "removed $(APP) and $(BUNDLE_ID)"
 
 clean:
-	rm -rf classbar cbtest *.dSYM
+	rm -rf $(BUILD)

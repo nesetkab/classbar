@@ -1,6 +1,4 @@
-classbar
-cbtest
-cbtest_dbg
+build/
 *.dSYM
 *.o
 schedule.json
